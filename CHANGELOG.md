@@ -1,5 +1,9 @@
 # Changelog
 
+История до 0.3.0 относится к проекту
+[386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
+Проект 387 — его продолжение; baseline — тег `v0.3.0`.
+
 ## [0.3.0](https://github.com/kitXIII/ai-for-developers-project-386/compare/v0.2.1...v0.3.0) (2026-11-16)
 
 

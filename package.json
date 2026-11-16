@@ -1,5 +1,5 @@
 {
-  "name": "ai-for-developers-project-386",
+  "name": "ai-for-developers-project-387",
   "version": "0.3.0",
   "description": "calendar booking service",
   "type": "module",
@@ -9,12 +9,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kitXIII/ai-for-developers-project-386.git"
+    "url": "git+https://github.com/kitXIII/ai-for-developers-project-387.git"
   },
   "bugs": {
-    "url": "https://github.com/kitXIII/ai-for-developers-project-386/issues"
+    "url": "https://github.com/kitXIII/ai-for-developers-project-387/issues"
   },
-  "homepage": "https://github.com/kitXIII/ai-for-developers-project-386/#readme",
+  "homepage": "https://github.com/kitXIII/ai-for-developers-project-387/#readme",
   "author": "Nikita Konovalov",
   "license": "ISC",
   "scripts": {
