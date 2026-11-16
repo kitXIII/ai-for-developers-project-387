@@ -4,6 +4,14 @@
 [386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
 Проект 387 — его продолжение; baseline — тег `v0.3.0`.
 
+## [0.4.0](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.3.0...v0.4.0) (2026-11-17)
+
+### Features
+
+* переезд проекта в 387: идентичность репозитория и ссылки на спецификацию и решения 386
+* собственный прод `kit-calls-calendar` на Render — Blueprint и деплой на каждый коммит в `main`
+* `main` защищён ruleset: мерж только через PR с зелёными чеками quality
+
 ## [0.3.0](https://github.com/kitXIII/ai-for-developers-project-386/compare/v0.2.1...v0.3.0) (2026-11-16)
 
 
