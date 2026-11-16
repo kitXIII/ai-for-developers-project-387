@@ -4,6 +4,13 @@
 [386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
 Проект 387 — его продолжение; baseline — тег `v0.3.0`.
 
+## [0.4.1](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.4.0...v0.4.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* дождаться детализации типа в e2e (тикет [#6](https://github.com/kitXIII/ai-for-developers-project-387/issues/6)) ([7ef9416](https://github.com/kitXIII/ai-for-developers-project-387/commit/7ef94162bcd48e3959cc3c07453ec97533ec68f1))
+
 ## [0.4.0](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.3.0...v0.4.0) (2026-11-17)
 
 ### Features
