@@ -16,8 +16,11 @@ test('владелец создаёт тип встречи в Modal и попа
   await page.getByRole('button', { name: 'Создать', exact: true }).click();
 
   // После успешного создания — автоматический переход на детализацию.
+  // Навигация применяется транзишеном: URL меняется раньше, чем React
+  // перерисовывает дерево. Ждём h1 детализации — у карточки списка тот же
+  // текст в h3, поэтому заголовок без уровня совпал бы ещё на списке.
   await expect(page).toHaveURL(/\/admin\/meeting-types\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole('heading', { name })).toBeVisible();
+  await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
   await expect(page.getByText('Длительность: 25 мин')).toBeVisible();
   await expect(page.getByText('Обсуждаем статус проекта')).toBeVisible();
 });
