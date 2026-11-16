@@ -7,7 +7,7 @@ Status: accepted
 модели и порты, HTTP-адаптер переводит запросы в вызовы сценариев и доменные ошибки в контракт.
 Поведение API снаружи не меняется ни на байт: статусы, коды, тексты, форма ответов и порядок
 проверок остаются прежними. Решение собрано по итогам карты «Слои серверного API — models,
-repositories, services» ([#18](https://github.com/kitXIII/ai-for-developers-project-386/issues/18))
+repositories, services» ([#18](https://github.com/kitXIII/ai-for-developers-project-386/issues/18), проект 386)
 из резолюций её тикетов; тикеты реализации перечислены в разделе «Порядок реализации и
 нарезка».
 
@@ -61,7 +61,7 @@ server/
 - `shared/` — общий для адаптеров код; сегодня это только `formatMoment`.
 - `app.ts` и `index.ts` — только wiring: создают адаптеры и часы, регистрируют обработчик
   ошибок и роуты. Кодов и видов доменных ошибок в `app.ts` нет; единственный живущий здесь
-  статус — `404` в `setNotFoundHandler` для неизвестных `/api` (резолюция #22): он отвечает
+  статус — `404` в `setNotFoundHandler` для неизвестных `/api` (резолюция [#22](https://github.com/kitXIII/ai-for-developers-project-386/issues/22) проекта 386): он отвечает
   за SPA-fallback, а не за маппинг доменных ошибок.
 
 `server/errors.ts` и `server/validation.ts` исчезают: `ApiError` переезжает в
@@ -151,7 +151,7 @@ export class DomainError extends Error {
   `@app/api/types` импортирует на сервере только этот модуль. `Record<DomainErrorKind, …>`
   тотален: новый вид не скомпилируется без строки маппинга.
 - Единственный статус вне `routes/errors.ts` — `404` в `setNotFoundHandler` (`app.ts`): он
-  отделяет неизвестный `/api` от SPA-fallback (резолюция #22) и с `DomainErrorKind` не связан.
+  отделяет неизвестный `/api` от SPA-fallback (резолюция [#22](https://github.com/kitXIII/ai-for-developers-project-386/issues/22) проекта 386) и с `DomainErrorKind` не связан.
 - Адаптер проверяет конверт и свои контрактные поля: тело — JSON-объект, `meetingTypeId` —
   непустая строка, `start` — ISO-момент со смещением. Тип доменного поля — часть его
   инварианта: `parseMeetingTypeData` и `parseGuestName` одним предикатом проверяют и `typeof`,
@@ -324,7 +324,7 @@ components:
 запрещены; сосуществование старого с новым в ещё не перенесённой возможности разрешено —
 `storage.ts` один на все роут-модули.
 
-Форма поставки — один PR фичи, шаг = коммит. Порядок:
+Форма поставки — один PR фичи, шаг = коммит. Порядок (тикеты ниже — проекта 386):
 
 1. [Слои: типы встреч — модель, порт и сценарии](https://github.com/kitXIII/ai-for-developers-project-386/issues/30):
    `DomainError`, инварианты типа встречи, порт типов, сценарии, `routes/errors.ts` с

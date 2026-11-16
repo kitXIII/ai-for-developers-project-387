@@ -23,8 +23,8 @@
 В проекте используется [mise](https://mise.jdx.dev/), рекомендуется его установить для простого удобного запуска команд
 
 ```bash
-git clone https://github.com/kitXIII/ai-for-developers-project-386.git
-cd ai-for-developers-project-386
+git clone https://github.com/kitXIII/ai-for-developers-project-387.git
+cd ai-for-developers-project-387
 
 # Установка окружения проекта (Node.js, pnpm и др.)
 mise install
@@ -48,7 +48,7 @@ mise run start   # запустит собранный сервер с NODE_ENV=
 Прод-образ собирается multi-stage `Dockerfile` на базе `node:26-alpine`.
 
 ```bash
-mise run docker:build   # соберёт образ calls-calendar
+mise run docker:build   # соберёт образ kit-calls-calendar
 mise run docker:run     # запустит контейнер; хост-порт переопределяется: PORT=8080 mise run docker:run
 ```
 
@@ -56,8 +56,8 @@ mise run docker:run     # запустит контейнер; хост-порт
 
 ## Деплой
 
-Прод: <https://kit-calls.onrender.com>. Render собирает образ из `Dockerfile` в репозитории и
-деплоит его из `main`; инфраструктура зафиксирована в [`render.yaml`](render.yaml)
+Прод: <https://kit-calls-calendar.onrender.com>. Render собирает образ из `Dockerfile` в репозитории и
+деплоит его из `main` на каждый коммит; инфраструктура зафиксирована в [`render.yaml`](render.yaml)
 
 ---
 
