@@ -1,0 +1,12 @@
+packages:
+  - packages/*
+overrides:
+  js-yaml: ^4.3.2
+allowBuilds:
+  agnix: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@typespec/compiler@1.18.0'
+  - '@typespec/http@1.18.0'
+  - '@typespec/openapi3@1.18.0'
+  - '@typespec/openapi@1.18.0'

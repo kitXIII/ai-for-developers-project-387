@@ -1,0 +1,85 @@
+name: quality
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Quality gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - run: mise run setup
+      # Chromium is not on the runner. Install every run: a browser cache is not
+      # worth it, and a Playwright image would wrap this whole job.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: mise run check
+
+  docker:
+    name: Docker build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The production image Render builds. The runner's Docker uses BuildKit,
+      # so the Dockerfile's pnpm cache mount works inside this build. A cache
+      # across runs would need buildx plus a third-party action; the cold build
+      # is cheap enough to skip that.
+      - run: docker build -t calls-calendar .
+
+  architecture:
+    name: Architecture gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - run: mise run setup
+      # Judges only what the pull request adds; the full gate runs in `check`
+      # above and on pre-push.
+      - uses: mokevnin/easement@1eeaecd8451ed08e0f1203542788a77c8d98c71a
+        with:
+          diff: origin/main
+
+  security:
+    name: History secret scan
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - run: mise run security

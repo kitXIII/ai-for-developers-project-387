@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": true,
+  "singleQuote": true,
+  "printWidth": 100,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    ".agents/**",
+    ".github/workflows/hexlet-check.yml",
+    "CHANGELOG.md",
+    "dist/**",
+    "node_modules/**",
+    "packages/api/generated/**",
+    "pnpm-lock.yaml",
+    "test-results/**",
+    "playwright-report/**"
+  ]
+}

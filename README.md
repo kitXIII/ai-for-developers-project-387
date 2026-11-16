@@ -1,6 +1,5 @@
 # Календарь звонков (продолжение)
 
-
 [![hexlet-check](https://github.com/kitXIII/ai-for-developers-project-387/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/kitXIII/ai-for-developers-project-387/actions)
 
 Интегрируйте работу агентов в GitHub проект
@@ -10,20 +9,55 @@
 
 ## Стек
 
-- Разное
+- **Node.js 26** — среда выполнения
+- **TypeScript 7** — строгая типизация
+- **Fastify 5** — HTTP-сервер и API
+- **TypeSpec** — описание API-контракта, из него генерируются OpenAPI и SDK
+- **React 19** — клиентское приложение
+- **Vite 8** — сборка клиента и dev-сервер
+- **@fastify/vite** — интеграция Vite с Fastify
+- **pnpm 12** — пакетный менеджер
 
 ## Установка
 
-<!-- Опишите установку: клонирование, зависимости, переменные окружения -->
+В проекте используется [mise](https://mise.jdx.dev/), рекомендуется его установить для простого удобного запуска команд
 
 ```bash
-git clone https://github.com/kitXIII/ai-for-developers-project-387.git
-cd ai-for-developers-project-387
+git clone https://github.com/kitXIII/ai-for-developers-project-386.git
+cd ai-for-developers-project-386
+
+# Установка окружения проекта (Node.js, pnpm и др.)
+mise install
+
+# Установка зависимостей, инструментов и git-хуков
+mise run setup
+
+# Запуск dev-сервера
+mise run
 ```
 
-## Использование
+## Сборка и запуск
 
-<!-- Добавьте примеры запуска и запись asciinema — именно это смотрит работодатель -->
+```bash
+mise run build   # соберёт клиент и сервер в dist/
+mise run start   # запустит собранный сервер с NODE_ENV=production
+```
+
+## Docker
+
+Прод-образ собирается multi-stage `Dockerfile` на базе `node:26-alpine`.
+
+```bash
+mise run docker:build   # соберёт образ calls-calendar
+mise run docker:run     # запустит контейнер; хост-порт переопределяется: PORT=8080 mise run docker:run
+```
+
+Данные хранятся в памяти процесса, так что перезапуск контейнера сбрасывает записи.
+
+## Деплой
+
+Прод: <https://kit-calls.onrender.com>. Render собирает образ из `Dockerfile` в репозитории и
+деплоит его из `main`; инфраструктура зафиксирована в [`render.yaml`](render.yaml)
 
 ---
 

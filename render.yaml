@@ -1,0 +1,12 @@
+# Render Blueprint: Docker-сервис kit-calls (free, singapore). Источник правды по инфраструктуре.
+services:
+  - type: web
+    name: kit-calls
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeployTrigger: checksPass

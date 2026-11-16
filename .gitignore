@@ -1,0 +1,14 @@
+node_modules
+dist
+*.local
+.DS_Store
+.idea
+.vscode
+build
+dist/
+.env
+database
+coverage
+hk.local.pkl
+test-results
+playwright-report
