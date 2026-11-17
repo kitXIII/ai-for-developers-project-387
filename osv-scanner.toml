@@ -1,0 +1,6 @@
+# auto-discovered by osv-scanner from the lockfile's directory (the audit task passes no --config).
+
+[[IgnoredVulns]]
+id = "GHSA-fc5q-39xc-vjpf"
+effectiveUntil = 2026-12-18
+reason = "picomatch 4.0.7 ReDoS (CVE-2026-112366), no fix released: upstream PR micromatch#194 is open. Dev/build-only, static globs, not in the prod image. Reassess by 2026-12-18."
