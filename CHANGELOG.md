@@ -4,6 +4,20 @@
 [386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
 Проект 387 — его продолжение; baseline — тег `v0.3.0`.
 
+## [0.5.0](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.4.1...v0.5.0) (2026-11-19)
+
+
+### Features
+
+* агент opencode в GitHub Actions по команде в issue и PR (тикет [#13](https://github.com/kitXIII/ai-for-developers-project-387/issues/13)) ([1550880](https://github.com/kitXIII/ai-for-developers-project-387/commit/1550880ee3d6a2285b32a4637d8e2a06b85216c4))
+* запускать агент opencode по команде в issue и PR (тикет [#13](https://github.com/kitXIII/ai-for-developers-project-387/issues/13)) ([0813682](https://github.com/kitXIII/ai-for-developers-project-387/commit/08136823f4061e041bc124657c3b724794175560))
+
+
+### Bug Fixes
+
+* погасить ложное срабатывание audit на picomatch ([6b90a9a](https://github.com/kitXIII/ai-for-developers-project-387/commit/6b90a9a69aa91d079862b3feb0830aabe4309dd5))
+* погасить ложное срабатывание audit на picomatch ([5f8f51f](https://github.com/kitXIII/ai-for-developers-project-387/commit/5f8f51f3c8c568cac1344450e6e96554cc134f5e)), closes [#9](https://github.com/kitXIII/ai-for-developers-project-387/issues/9) [#10](https://github.com/kitXIII/ai-for-developers-project-387/issues/10)
+
 ## [0.4.1](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.4.0...v0.4.1) (2026-11-16)
 
 
