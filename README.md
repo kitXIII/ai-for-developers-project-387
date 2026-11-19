@@ -59,6 +59,61 @@ mise run docker:run     # запустит контейнер; хост-порт
 Прод: <https://kit-calls-calendar.onrender.com>. Render собирает образ из `Dockerfile` в репозитории и
 деплоит его из `main` на каждый коммит; инфраструктура зафиксирована в [`render.yaml`](render.yaml)
 
+## Агент в GitHub Actions
+
+В репозитории работает агент [opencode](https://opencode.ai): он отвечает на команду в обсуждении
+issue или pull request. Воркфлоу — [`.github/workflows/opencode.yml`](.github/workflows/opencode.yml).
+
+**Событие.** `issue_comment` (обсуждение issue и pull request) и `pull_request_review_comment`
+(комментарий к строке diff), оба только `types: [created]`. Само событие модель не вызывает: прогон
+стартует, только если в комментарии есть команда, автор не бот и у автора есть право записи в
+репозиторий (`author_association` — `OWNER`, `MEMBER` или `COLLABORATOR`). Команды ботов прогон не
+запускают, а комментарии из fork не получают секретов.
+
+**Команды.** Агент слушает `/opencode` и `/oc` — это `mentions` по умолчанию, других нет. Команда без
+текста означает «перескажи тред», команда с текстом — задачу.
+
+**Модель.** `opencode/qwen3.8-flash` (провайдер OpenCode Zen); ключ лежит в GitHub Secrets как
+`OPENCODE_API_KEY`. Модель кодовая и одна из самых дешёвых: $0.15 за 1M входных токенов и $0.47 за
+1M выходных.
+
+**Назначение.** Объяснить код, поправить ошибку, ответить по строке diff, разобрать тикет. Для правок
+агент создаёт ветку `opencode/issue<N>-<timestamp>` (или ветку pull request), коммитит, пушит и
+открывает PR; в `main` он не коммитит никогда.
+
+**Результаты.** Комментарий с ответом в issue или pull request, ветка и PR при изменениях, прогон в
+Actions. Проверки своего PR агент увидеть не может: ветка и PR появляются после его ответа, job на
+этом заканчивается — PR проверяет `quality`.
+
+**Авторизация и два App.** Стандартный режим — OIDC и GitHub App
+[`opencode-agent`](https://github.com/apps/opencode-agent): у job есть `contents: read` и
+`id-token: write`, checkout идёт с `persist-credentials: false`, а токен App (комментарии, ветки, PR)
+opencode получает по OIDC внутри своего процесса и в окружение агента не отдаёт.
+
+Отсюда ограничение: `gh` в шелле агента неаутентифицирован, а процессы из `.agents/skills`
+(`wayfinder`, `to-tickets`, `triage`) начинаются с `gh`. Поэтому нужен второй App — свой, с правом
+`Issues: Read and write`: `actions/create-github-app-token` выдаёт часовой токен на этот репозиторий
+и кладёт его в `GH_TOKEN` только на шаг агента. Секреты: `AGENT_APP_CLIENT_ID` и
+`AGENT_APP_PRIVATE_KEY` (`.pem` генерируется один раз при создании App).
+
+Отличие от `use_github_token: true`: там один токен `GITHUB_TOKEN` обслуживает и opencode, и `gh`, но
+job получает `contents`, `pull-requests` и `issues` на запись, а checkout приходится оставлять с
+`persist-credentials: true` — иначе нечем пушить, а гейт `artipacked` в `quality` такое валит.
+Стандартный режим с двумя App держит код и PR за короткоживущим токеном `opencode-agent`, а трекер —
+за часовым токеном с правом только на issues.
+
+**Параметр `share`** устарел: сессии больше не публикуются (sharing отключён в v1.19.6), экшен вход
+игнорирует. Мы его не задаём.
+
+**Границы прогона.** `timeout-minutes: 45`; `concurrency` — по номеру issue или pull request,
+`cancel-in-progress: false`, чтобы вторая команда встала в очередь и не рвала текущую правку.
+
+**Что есть на раннере.** Скиллы `.agents/skills/` и соглашения `docs/agents/` — из checkout.
+Тулчейн ставится до агента: `mise` (Node 26, pnpm 12) и `pnpm install`, поэтому работают
+`mise run lint`, `mise run typecheck` и `mise run test`. Не работают `mise run check` (osv-скану
+нужна сеть) и `mise run test:e2e` (Chromium не ставится). `mise run setup` не вызывается: он ставит
+`hk`-хуки, и каждый коммит агента гонял бы полный pre-push гейт.
+
 ---
 
 <details>

@@ -17,6 +17,20 @@ React 19 + Mantine 9 (SPA) на клиенте, API-контракт в TypeSpec
   входит в `check`). Локально браузер ставится один раз: `pnpm exec playwright install chromium`.
   В CI job `check` ставит его сам на каждом прогоне: `pnpm exec playwright install --with-deps chromium`
 
+## Агент в GitHub Actions
+
+Воркфлоу `.github/workflows/opencode.yml` запускает агент opencode по команде в issue, обсуждении
+pull request или комментарии к строке diff. Подробности — в `README.md`, раздел «Агент в GitHub
+Actions».
+
+- Команды — `/opencode` и `/oc`. Прогон стартует только от `OWNER`, `MEMBER` или `COLLABORATOR`;
+  команды ботов игнорируются, недоверенные комментарии секретов не получают.
+- На раннере стоят `mise` и зависимости: работают `mise run lint`, `mise run typecheck`,
+  `mise run test`. Не работают `mise run check` (osv-скану нужна сеть) и `mise run test:e2e` (нет
+  Chromium) — это задачи job'а `quality`.
+- `gh` у агента авторизован часовым токеном своего App с правом только на issues: трекер, лейблы и
+  комментарии доступны, `gh pr` и `gh run` — нет.
+
 ## API-контракт (главный источник правды)
 
 - Разработка ведётся от контракта (Design First): сначала TypeSpec → `pnpm gen` → артефакты,
