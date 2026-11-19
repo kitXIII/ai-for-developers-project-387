@@ -58,4 +58,4 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ steps.tracker.outputs.token }}
         with:
-          model: opencode/qwen3.8-flash
+          model: opencode/deepseek-v4.1-flash
