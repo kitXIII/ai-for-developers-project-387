@@ -124,21 +124,21 @@ function BookingWizard({ meetingTypeId, fromList }: { meetingTypeId: string; fro
           onBackToDateTime={() => setStep(2)}
         />
       )}
-      <Group gap="sm">
-        {step > 1 && (
-          <Button
-            variant="default"
-            onClick={() => setStep((current) => (current - 1) as WizardStep)}
-          >
-            Назад
-          </Button>
-        )}
-        {step < 3 && (
+      {step < 3 && (
+        <Group gap="sm">
+          {step > 1 && (
+            <Button
+              variant="default"
+              onClick={() => setStep((current) => (current - 1) as WizardStep)}
+            >
+              Назад
+            </Button>
+          )}
           <Button onClick={() => setStep((current) => (current + 1) as WizardStep)}>
             Продолжить
           </Button>
-        )}
-      </Group>
+        </Group>
+      )}
     </Stack>
   );
 }
