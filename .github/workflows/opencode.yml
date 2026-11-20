@@ -16,16 +16,25 @@ concurrency:
   group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
   # A queued command must not kill a run that is in the middle of an edit.
   cancel-in-progress: false
+  # The default queue keeps a single pending run, so a third command in the same
+  # thread would replace the second one silently.
+  queue: max
 
 jobs:
   opencode:
     name: Agent
     # Only a command of a trusted participant starts a run: bots and users
-    # without write access never reach the model.
+    # without write access never reach the model. `author_association` is a
+    # prefilter only (it does not separate read from write collaborators); the
+    # real check is `assertPermissions` inside the action.
     if: |
       github.event.comment.user.type != 'Bot' &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      (contains(github.event.comment.body, '/opencode') || contains(github.event.comment.body, '/oc'))
+      (startsWith(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, ' /oc') ||
+       startsWith(github.event.comment.body, '/opencode') ||
+       contains(github.event.comment.body, ' /opencode')) &&
+      (github.event.issue.state || github.event.pull_request.state) == 'open'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -33,7 +42,24 @@ jobs:
       # Exchanged for the token of the opencode GitHub App: comments, branches
       # and pull requests. See README.md, "Агент в GitHub Actions".
       id-token: write
+      # The fork guard reads the pull request of this repository only.
+      pull-requests: read
     steps:
+      # The action checks out the branch of a fork pull request and runs the
+      # agent on it while the App token (contents and pull requests: write)
+      # sits in `.git/config`, so a fork command would execute untrusted code
+      # next to a write token.
+      - name: Reject fork pull requests
+        if: github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=${{ github.event.issue.number || github.event.pull_request.number }}
+          fork=$(gh api "repos/${{ github.repository }}/pulls/${number}" --jq .head.repo.fork)
+          [ "$fork" = "false" ] || {
+            echo "::error::/oc in a pull request from a fork is not supported"
+            exit 1
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
