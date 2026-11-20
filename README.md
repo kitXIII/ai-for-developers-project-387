@@ -118,8 +118,15 @@ job получает `contents`, `pull-requests` и `issues` на запись, 
 Стандартный режим с двумя App держит код и PR за короткоживущим токеном `opencode-agent`, а трекер —
 за часовым токеном с правом только на issues.
 
-**Параметр `share`** устарел: сессии больше не публикуются (sharing отключён в v1.19.6), экшен вход
-игнорирует. Мы его не задаём.
+**Запуск.** Upstream-экшен `anomalyco/opencode/github` не используется: его шаг выбора версии ходит в
+`api.github.com` без токена, падает на rate limit, а сам экшен удалён из upstream. Вместо него —
+локальный composite action [`.github/actions/opencode`](.github/actions/opencode/action.yml): он ставит
+закреплённый OpenCode V1.19.6 напрямую из release и запускает `opencode github run`. Версия — input
+`version`; при обновлении проверьте синтаксис `OPENCODE_CONFIG_CONTENT` (V1 `permission`, не V2
+`permissions`).
+
+**Параметр `share`** устарел: сессии больше не публикуются (sharing отключён в v1.19.6), а локальный
+action этот вход не принимает. Мы его не задаём.
 
 **Границы прогона.** `timeout-minutes: 45`; `concurrency` — по номеру issue или pull request,
 `cancel-in-progress: false` и `queue: max`: вторая команда ждёт и не рвёт текущую правку, а третья не
@@ -132,7 +139,7 @@ job получает `contents`, `pull-requests` и `issues` на запись, 
 нужна сеть) и `mise run test:e2e` (Chromium не ставится). `mise run setup` не вызывается: он ставит
 `hk`-хуки, и каждый коммит агента гонял бы полный pre-push гейт.
 
-**Файловая граница.** Экшен ставит OpenCode V1.19.6 (`releases/latest`), поэтому inline-конфиг
+**Файловая граница.** Локальный action ставит закреплённый OpenCode V1.19.6, поэтому inline-конфиг
 (`OPENCODE_CONFIG_CONTENT`) пишется в V1-синтаксисе `permission`; ключ `permissions` (V2) ломает
 валидацию конфига и прогон не стартует. Checkout — единственное доступное дерево: `external_directory`
 запрещён, поэтому `read`, `edit`, `glob`, `grep` и `cd` за пределы рабочей копии получают отказ прав.

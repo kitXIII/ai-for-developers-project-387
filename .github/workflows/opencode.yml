@@ -79,15 +79,18 @@ jobs:
           private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
           # The App itself is created with `Issues: Read and write` only.
           permission-issues: write
-      - uses: anomalyco/opencode/github@f4e363c8295fa90a03dddc451882fffe8fbce357 # v1.19.6
+      # The upstream `anomalyco/opencode/github` action is not used: its version
+      # step calls the unauthenticated GitHub API, and a rate limit fails the
+      # run before opencode starts. The local action installs the pinned V1
+      # release directly and runs the same `opencode github run` entrypoint.
+      - uses: ./.github/actions/opencode
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ steps.tracker.outputs.token }}
-          # The action installs OpenCode V1.19.6 from `releases/latest`, so the
-          # inline config uses V1 `permission`: V2 `permissions` fails config
-          # validation and the run dies before the agent starts. The checkout
-          # is the only tree the agent may touch; a read, edit, search or `cd`
-          # outside it is denied.
+          # The pinned V1 release accepts only V1 `permission` rules: V2
+          # `permissions` fails config validation. The checkout is the only
+          # tree the agent may touch; a read, edit, search or `cd` outside it
+          # is denied.
           OPENCODE_CONFIG_CONTENT: '{"permission":{"external_directory":"deny"}}'
         with:
           model: opencode/deepseek-v4.1-flash

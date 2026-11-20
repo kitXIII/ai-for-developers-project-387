@@ -63,17 +63,19 @@ jobs:
           private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
           # The App itself is created with `Issues: Read and write` only.
           permission-issues: read
-      - uses: anomalyco/opencode/github@f4e363c8295fa90a03dddc451882fffe8fbce357 # v1.19.6
+      # Local wrapper instead of the removed upstream action; see
+      # `.github/actions/opencode` and `opencode.yml`.
+      - uses: ./.github/actions/opencode
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ steps.reader.outputs.token }}
           # Inline config wins over the project config and applies to this run
-          # only. The runner installs OpenCode V1.19.6 (`releases/latest`), so
-          # this is V1 `permission`: V2 `permissions` fails validation. The
-          # model may read the code and the issue tracker, nothing else: no
-          # edits, no git, no network, no skills, no MCP, and no paths outside
-          # the checkout. With edits denied the action cannot push a branch or
-          # open a PR even if the issue text asks for it.
+          # only. The pinned V1 release accepts only V1 `permission`: V2
+          # `permissions` fails validation. The model may read the code and the
+          # issue tracker, nothing else: no edits, no git, no network, no
+          # skills, no MCP, and no paths outside the checkout. With edits
+          # denied the action cannot push a branch or open a PR even if the
+          # issue text asks for it.
           OPENCODE_CONFIG_CONTENT: '{"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny"},"grep":"allow","glob":"allow","list":"allow","bash":{"*":"deny","gh issue view *":"allow","gh issue list *":"allow"},"external_directory":"deny"}}'
         with:
           model: opencode/deepseek-v4.1-flash
