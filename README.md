@@ -132,6 +132,12 @@ job получает `contents`, `pull-requests` и `issues` на запись, 
 нужна сеть) и `mise run test:e2e` (Chromium не ставится). `mise run setup` не вызывается: он ставит
 `hk`-хуки, и каждый коммит агента гонял бы полный pre-push гейт.
 
+**Файловая граница.** Checkout — единственное доступное дерево: `external_directory` запрещён
+inline-конфигом (`OPENCODE_CONFIG_CONTENT`), поэтому `read`, `edit`, `glob`, `grep` и `cd` за пределы
+рабочей копии получают отказ прав. Обычные команды (`mise run …`, `pnpm test`, `git`) работают внутри
+checkout и не задеты; если сценарию правда нужен внешний путь, правило сужается до каталога, а не
+снимается.
+
 ### Автотриаж новых обращений
 
 Второй воркфлоу — [`triage.yml`](.github/workflows/triage.yml): он запускается на `issues: [opened]`
@@ -145,9 +151,9 @@ job получает `contents`, `pull-requests` и `issues` на запись, 
 
 **Права.** У модели нет доступа на запись: `edit` запрещён, `bash` — только `gh issue view/list`,
 `GH_TOKEN` — read-only токен App (`issues: read`), веб-доступ, скиллы и инструменты MCP запрещены
-inline-конфигом (`OPENCODE_CONFIG_CONTENT`). Комментарий постит сам экшен; лейблы ставит пост-шаг
-по маркеру `<!-- triage: ... -->` через `GITHUB_TOKEN` с `issues: write`. Ветку и PR прогон создать
-не может.
+inline-конфигом (`OPENCODE_CONFIG_CONTENT`), внешние каталоги (`external_directory`) закрыты.
+Комментарий постит сам экшен; лейблы ставит пост-шаг по маркеру `<!-- triage: ... -->` через
+`GITHUB_TOKEN` с `issues: write`. Ветку и PR прогон создать не может.
 
 **Результат.** Комментарий с дисклеймером и разбором, `bug`/`enhancement` (если категория очевидна)
 и одно состояние: `needs-triage` или `needs-info` с конкретными вопросами. `ready-for-*`, закрытие

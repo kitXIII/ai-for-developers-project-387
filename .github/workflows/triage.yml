@@ -69,17 +69,31 @@ jobs:
           GH_TOKEN: ${{ steps.reader.outputs.token }}
           # Inline config wins over the project config and applies to this run
           # only. The model may read the code and the issue tracker, nothing
-          # else: no edits, no git, no network, no skills, no MCP. With edits
-          # denied the action cannot push a branch or open a PR even if the
-          # issue text asks for it.
-          OPENCODE_CONFIG_CONTENT: '{"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny"},"grep":"allow","glob":"allow","list":"allow","bash":{"*":"deny","gh issue view *":"allow","gh issue list *":"allow"}}}'
+          # else: no edits, no git, no network, no skills, no MCP, and no paths
+          # outside the checkout. With edits denied the action cannot push a
+          # branch or open a PR even if the issue text asks for it.
+          OPENCODE_CONFIG_CONTENT: >-
+            {"permissions":[
+              {"action":"*","resource":"*","effect":"deny"},
+              {"action":"read","resource":"*","effect":"allow"},
+              {"action":"read","resource":"*.env","effect":"deny"},
+              {"action":"read","resource":"*.env.*","effect":"deny"},
+              {"action":"grep","resource":"*","effect":"allow"},
+              {"action":"glob","resource":"*","effect":"allow"},
+              {"action":"list","resource":"*","effect":"allow"},
+              {"action":"shell","resource":"*","effect":"deny"},
+              {"action":"shell","resource":"gh issue view *","effect":"allow"},
+              {"action":"shell","resource":"gh issue list *","effect":"allow"},
+              {"action":"external_directory","resource":"*","effect":"deny"}
+            ]}
         with:
           model: opencode/deepseek-v4.1-flash
           prompt: |
             Ты — автотриаж входящих обращений. Сначала прочитай docs/agents/auto-triage.md и следуй ему.
             Разбери обращение #${{ github.event.issue.number }}: что просят, есть ли это в коде, похожие
             issue в трекере и каких данных не хватает. Не меняй код, не создавай ветки и PR, не закрывай
-            issue, не трогай другие issue, не выходи в сеть. Закончи ответ строкой-маркером из инструкции.
+            issue, не трогай другие issue, не выходи в сеть и за пределы рабочей копии
+            репозитория. Закончи ответ строкой-маркером из инструкции.
       # The model has no write token, so the labels are applied here from the
       # marker in its comment. Values are validated against the vocabulary of
       # docs/agents/auto-triage.md; a missing marker falls back to needs-triage.
