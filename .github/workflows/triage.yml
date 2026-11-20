@@ -1,0 +1,127 @@
+name: triage
+
+# Automatic triage of new incoming issues. The rules live in
+# docs/agents/auto-triage.md; this file is only the runner.
+#
+# Only a trusted author starts a run. This condition is a prefilter: the real
+# check is `assertPermissions` inside the OpenCode action, which requires write
+# access for the author of an `issues` event. An untrusted issue would fail the
+# run, so external requests are out of scope for now.
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+concurrency:
+  group: opencode-triage-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    name: Triage
+    # State labels come from docs/agents/triage-labels.md. Tickets created by
+    # /to-tickets and /to-spec already carry `ready-for-agent`, and /wayfinder
+    # marks its tickets with `wayfinder:*`: they are ready by construction and
+    # are not triaged again. Issues of bots (the process app) are skipped too.
+    if: |
+      github.event.issue.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
+      !contains(github.event.issue.labels.*.name, 'needs-triage') &&
+      !contains(github.event.issue.labels.*.name, 'needs-info') &&
+      !contains(github.event.issue.labels.*.name, 'ready-for-agent') &&
+      !contains(github.event.issue.labels.*.name, 'ready-for-human') &&
+      !contains(github.event.issue.labels.*.name, 'wontfix') &&
+      !contains(github.event.issue.labels.*.name, 'wayfinder:map') &&
+      !contains(github.event.issue.labels.*.name, 'wayfinder:research') &&
+      !contains(github.event.issue.labels.*.name, 'wayfinder:prototype') &&
+      !contains(github.event.issue.labels.*.name, 'wayfinder:grilling') &&
+      !contains(github.event.issue.labels.*.name, 'wayfinder:task')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # The OpenCode action posts the triage comment with the App token it
+      # exchanges over OIDC. That token also carries contents and pull requests
+      # write, so the run is kept read-only by the permission config below, not
+      # by the prompt.
+      id-token: write
+      # The post-step applies labels with the default token; the model itself
+      # never gets a writable one.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The model reads the tracker for duplicates and already-implemented
+      # requests, so its `gh` token is narrowed to `issues: read`. It cannot
+      # label, comment or close anything.
+      - uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        id: reader
+        with:
+          client-id: ${{ secrets.AGENT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AGENT_APP_PRIVATE_KEY }}
+          # The App itself is created with `Issues: Read and write` only.
+          permission-issues: read
+      - uses: anomalyco/opencode/github@f4e363c8295fa90a03dddc451882fffe8fbce357 # v1.19.6
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ steps.reader.outputs.token }}
+          # Inline config wins over the project config and applies to this run
+          # only. The model may read the code and the issue tracker, nothing
+          # else: no edits, no git, no network, no skills, no MCP. With edits
+          # denied the action cannot push a branch or open a PR even if the
+          # issue text asks for it.
+          OPENCODE_CONFIG_CONTENT: '{"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny"},"grep":"allow","glob":"allow","list":"allow","bash":{"*":"deny","gh issue view *":"allow","gh issue list *":"allow"}}}'
+        with:
+          model: opencode/deepseek-v4.1-flash
+          prompt: |
+            Ты — автотриаж входящих обращений. Сначала прочитай docs/agents/auto-triage.md и следуй ему.
+            Разбери обращение #${{ github.event.issue.number }}: что просят, есть ли это в коде, похожие
+            issue в трекере и каких данных не хватает. Не меняй код, не создавай ветки и PR, не закрывай
+            issue, не трогай другие issue, не выходи в сеть. Закончи ответ строкой-маркером из инструкции.
+      # The model has no write token, so the labels are applied here from the
+      # marker in its comment. Values are validated against the vocabulary of
+      # docs/agents/auto-triage.md; a missing marker falls back to needs-triage.
+      - name: Apply triage labels
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          marker=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" --paginate \
+            --jq '.[].body' | grep -oE '<!-- triage: [^>]*-->' | tail -n 1 || true)
+
+          if [ -z "$marker" ]; then
+            echo "::warning::triage marker not found; falling back to needs-triage"
+            gh issue edit "$ISSUE" --add-label needs-triage
+            exit 0
+          fi
+
+          category=$(printf '%s' "$marker" | sed -nE 's/.*category=([a-z-]+).*/\1/p')
+          state=$(printf '%s' "$marker" | sed -nE 's/.*state=([a-z-]+).*/\1/p')
+
+          case "$state" in
+            needs-triage | needs-info) ;;
+            *)
+              echo "::warning::unknown triage state '$state'; falling back to needs-triage"
+              state=needs-triage
+              ;;
+          esac
+
+          case "$category" in
+            bug | enhancement | none) ;;
+            *)
+              echo "::warning::unknown triage category '$category'; leaving the category alone"
+              category=none
+              ;;
+          esac
+
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}" --jq '[.labels[].name] | join(",")')
+          args=(--add-label "$state")
+          if [ "$category" != "none" ] && ! printf '%s' ",$existing," | grep -qE ',(bug|enhancement),'; then
+            args+=(--add-label "$category")
+          fi
+          gh issue edit "$ISSUE" "${args[@]}"
