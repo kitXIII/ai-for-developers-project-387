@@ -1,5 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { createMeetingTypeViaUi, meetingTypeDescription, uniqueName } from './helpers.js';
+
+// Тикет #27: в мастере нет служебных подписей шага — ни счётчика «Шаг N из 3»,
+// ни заголовка шага второго уровня. Единственный заголовок — название типа.
+async function expectNoStepLabels(page: Page): Promise<void> {
+  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
+}
 
 test('гость видит типы встреч карточками на /booking', async ({ page }) => {
   const name = uniqueName('Знакомство');
@@ -23,8 +30,7 @@ test('выбор карточки открывает мастер брониро
 
   await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { name })).toBeVisible();
-  // Служебный индикатор шага убран из интерфейса (тикет #27).
-  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(page);
   // Шаг «Тип»: гость сразу видит навигацию «Продолжить» без подписи шага.
   await expect(page.getByRole('button', { name: 'Продолжить' })).toBeVisible();
 
@@ -32,7 +38,7 @@ test('выбор карточки открывает мастер брониро
   // различаются по видимому содержимому, а не по служебным подписям.
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.locator('table button').first()).toBeVisible();
-  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(page);
 
   // День и слот нужны, чтобы шаг подтверждения показал поле «Имя».
   await page.locator('table button:not([disabled])').first().click();
@@ -41,13 +47,13 @@ test('выбор карточки открывает мастер брониро
   await firstSlot.click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.getByLabel('Имя')).toBeVisible();
-  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(page);
   // На последнем шаге «Продолжить» нет — подтверждение появится позже.
   await expect(page.getByRole('button', { name: 'Продолжить' })).toBeHidden();
 
   await page.getByRole('button', { name: 'Назад' }).click();
   await expect(page.locator('table button').first()).toBeVisible();
-  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(page);
 });
 
 test('прямая ссылка на тип открывает мастер с пройденным шагом «Тип»', async ({ page }) => {
@@ -57,7 +63,7 @@ test('прямая ссылка на тип открывает мастер с �
   await page.goto('/booking');
   await page.getByRole('link', { name }).click();
   await expect(page.getByRole('heading', { name })).toBeVisible();
-  await expect(page.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(page);
   const wizardUrl = page.url();
 
   // Прямая ссылка — как открытие сохранённого адреса в новой вкладке: без
@@ -67,7 +73,7 @@ test('прямая ссылка на тип открывает мастер с �
 
   await expect(directLink.getByRole('heading', { name })).toBeVisible();
   await expect(directLink.locator('table button').first()).toBeVisible();
-  await expect(directLink.getByText(/Шаг \d+ из 3/)).toHaveCount(0);
+  await expectNoStepLabels(directLink);
 
   await directLink.close();
 });
