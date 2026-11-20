@@ -9,6 +9,10 @@ import { createMeetingTypeViaUi } from './helpers.js';
 const uniqueName = (prefix: string) =>
   `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// The desktop layout starts at 576px, the same breakpoint the rest of the UI
+// uses; below it the wizard keeps the stacked mobile layout.
+const isMobileViewport = (viewport: { width: number } | null) => (viewport?.width ?? 1280) < 576;
+
 // Day cells are labelled by Mantine in the calendar locale (Calendar gets
 // locale="ru"), so the test mirrors the same dayjs format for its targets.
 const label = (iso: string) => dayjs(iso).locale('ru').format('D MMMM YYYY');
@@ -133,4 +137,117 @@ test('смена типа сбрасывает выбранный слот — �
   await expect(page.locator('[aria-pressed="true"]')).toHaveCount(0);
   await openDayCell(page, firstDay);
   await expect(page.locator('[aria-pressed="true"]')).toHaveCount(0);
+});
+
+// Тикет #34: на десктопе слоты стоят справа от календаря одной прокручиваемой
+// колонкой, а на мобильном остаются под календарём.
+test('на десктопе слоты стоят справа от календаря в колонке с внутренней прокруткой', async ({
+  page,
+  viewport,
+}) => {
+  test.skip(isMobileViewport(viewport), 'только десктопный проект');
+
+  const name = uniqueName('Раскладка');
+  await openWizardStepDateAndTime(page, name);
+  const firstDay = nextWeekdays(1)[0];
+  await openDayCell(page, firstDay);
+
+  const calendar = page.locator('table');
+  const firstSlot = page.getByRole('button', { name: '09:00–09:30' });
+  await expect(firstSlot).toBeVisible();
+
+  const [calendarBox, firstBox] = await Promise.all([
+    calendar.boundingBox(),
+    firstSlot.boundingBox(),
+  ]);
+  if (!calendarBox || !firstBox) {
+    throw new Error('не удалось измерить календарь и слоты');
+  }
+
+  expect(firstBox.x, 'слоты справа от календаря').toBeGreaterThanOrEqual(
+    calendarBox.x + calendarBox.width,
+  );
+
+  // Прямой родитель кнопок — колонка слотов: она ограничена высотой
+  // календаря, поэтому при переполнении прокручивается внутри себя.
+  const slotList = firstSlot.locator('..');
+  const slotListBox = await slotList.boundingBox();
+  expect(slotListBox).not.toBeNull();
+  expect(slotListBox!.x + slotListBox!.width, 'колонка не выходит за окно').toBeLessThanOrEqual(
+    viewport?.width ?? 1280,
+  );
+
+  const scroll = await slotList.evaluate((element) => {
+    const style = element.ownerDocument.defaultView!.getComputedStyle(element);
+    return {
+      overflowY: style.overflowY,
+      flexDirection: style.flexDirection,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    };
+  });
+  expect(scroll.overflowY).toBe('auto');
+  expect(scroll.flexDirection, 'слоты выстроены в один столбец').toBe('column');
+  expect(await slotList.locator('button').count(), 'в колонке несколько слотов').toBeGreaterThan(1);
+  expect(scroll.scrollHeight, 'слоты прокручиваются внутри колонки').toBeGreaterThan(
+    scroll.clientHeight,
+  );
+});
+
+test('на мобильном слоты остаются под календарём', async ({ page, viewport }) => {
+  test.skip(!isMobileViewport(viewport), 'только мобильный проект');
+
+  const name = uniqueName('Раскладка');
+  await openWizardStepDateAndTime(page, name);
+  const firstDay = nextWeekdays(1)[0];
+  await openDayCell(page, firstDay);
+
+  const firstSlot = page.getByRole('button', { name: '09:00–09:30' });
+  await expect(firstSlot).toBeVisible();
+
+  const [calendarBox, slotBox] = await Promise.all([
+    page.locator('table').boundingBox(),
+    firstSlot.boundingBox(),
+  ]);
+  if (!calendarBox || !slotBox) {
+    throw new Error('не удалось измерить календарь и слоты');
+  }
+
+  expect(slotBox.y, 'слоты под календарём').toBeGreaterThanOrEqual(
+    calendarBox.y + calendarBox.height,
+  );
+});
+
+test('на ширине 576 px слоты уже справа от календаря и блок вписывается в окно', async ({
+  page,
+  viewport,
+}) => {
+  test.skip(isMobileViewport(viewport), 'только десктопный проект');
+  await page.setViewportSize({ width: 576, height: 720 });
+
+  const name = uniqueName('Раскладка');
+  await openWizardStepDateAndTime(page, name);
+  const firstDay = nextWeekdays(1)[0];
+  await openDayCell(page, firstDay);
+
+  const firstSlot = page.getByRole('button', { name: '09:00–09:30' });
+  await expect(firstSlot).toBeVisible();
+
+  const [calendarBox, slotBox] = await Promise.all([
+    page.locator('table').boundingBox(),
+    firstSlot.boundingBox(),
+  ]);
+  if (!calendarBox || !slotBox) {
+    throw new Error('не удалось измерить календарь и слоты');
+  }
+
+  expect(slotBox.x, 'слоты справа от календаря').toBeGreaterThanOrEqual(
+    calendarBox.x + calendarBox.width,
+  );
+  expect(slotBox.x + slotBox.width, 'слоты не выходят за окно').toBeLessThanOrEqual(576);
+
+  const horizontalOverflow = await page.evaluate(
+    'document.documentElement.scrollWidth > document.documentElement.clientWidth',
+  );
+  expect(horizontalOverflow, 'страница не прокручивается по горизонтали').toBe(false);
 });

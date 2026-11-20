@@ -1,10 +1,11 @@
 import type { Slot } from '@app/api/types';
 import { listAvailableSlotsOptions } from '@app/api/react-query';
-import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
+import { Button, Center, Loader, Text } from '@mantine/core';
 import { Calendar } from '@mantine/dates';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { dayLabel, timeRangeLabel } from '../../lib/datetime';
+import classes from './StepDateAndTime.module.css';
 
 type StepDateAndTimeProps = {
   meetingTypeId: string;
@@ -48,7 +49,7 @@ export function StepDateAndTime({
   const daySlots = slotsDays.find((day) => day.date === selectedDay)?.slots ?? [];
 
   return (
-    <Stack gap="md" w="fit-content">
+    <div className={`${classes.layout} ${selectedDay ? classes.layoutWithSlots : ''}`}>
       <Calendar
         locale="ru"
         ariaLabels={{ nextMonth: 'Следующий месяц', previousMonth: 'Предыдущий месяц' }}
@@ -62,11 +63,11 @@ export function StepDateAndTime({
         })}
       />
       {selectedDay && (
-        <Stack gap="xs">
+        <div className={classes.slots}>
           <Text size="sm" c="dimmed">
             Свободное время {dayLabel(selectedDay)}:
           </Text>
-          <Group gap="xs">
+          <div className={classes.slotList}>
             {daySlots.map((slot) => (
               <Button
                 key={slot.start}
@@ -77,9 +78,9 @@ export function StepDateAndTime({
                 {timeRangeLabel(slot.start, slot.end)}
               </Button>
             ))}
-          </Group>
-        </Stack>
+          </div>
+        </div>
       )}
-    </Stack>
+    </div>
   );
 }

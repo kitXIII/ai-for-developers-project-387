@@ -1,0 +1,48 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-md);
+  width: fit-content;
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+}
+
+.slotList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mantine-spacing-xs);
+}
+
+@media (min-width: 36em) {
+  .layout {
+    position: relative;
+  }
+
+  .layoutWithSlots {
+    padding-right: calc(12rem + var(--mantine-spacing-md));
+  }
+
+  .slots {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 12rem;
+  }
+
+  .slotList {
+    flex: 1 1 auto;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .slotList > * {
+    flex: 0 0 auto;
+  }
+}
