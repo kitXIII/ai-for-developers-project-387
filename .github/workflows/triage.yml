@@ -68,24 +68,13 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ steps.reader.outputs.token }}
           # Inline config wins over the project config and applies to this run
-          # only. The model may read the code and the issue tracker, nothing
-          # else: no edits, no git, no network, no skills, no MCP, and no paths
-          # outside the checkout. With edits denied the action cannot push a
-          # branch or open a PR even if the issue text asks for it.
-          OPENCODE_CONFIG_CONTENT: >-
-            {"permissions":[
-              {"action":"*","resource":"*","effect":"deny"},
-              {"action":"read","resource":"*","effect":"allow"},
-              {"action":"read","resource":"*.env","effect":"deny"},
-              {"action":"read","resource":"*.env.*","effect":"deny"},
-              {"action":"grep","resource":"*","effect":"allow"},
-              {"action":"glob","resource":"*","effect":"allow"},
-              {"action":"list","resource":"*","effect":"allow"},
-              {"action":"shell","resource":"*","effect":"deny"},
-              {"action":"shell","resource":"gh issue view *","effect":"allow"},
-              {"action":"shell","resource":"gh issue list *","effect":"allow"},
-              {"action":"external_directory","resource":"*","effect":"deny"}
-            ]}
+          # only. The runner installs OpenCode V1.19.6 (`releases/latest`), so
+          # this is V1 `permission`: V2 `permissions` fails validation. The
+          # model may read the code and the issue tracker, nothing else: no
+          # edits, no git, no network, no skills, no MCP, and no paths outside
+          # the checkout. With edits denied the action cannot push a branch or
+          # open a PR even if the issue text asks for it.
+          OPENCODE_CONFIG_CONTENT: '{"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny"},"grep":"allow","glob":"allow","list":"allow","bash":{"*":"deny","gh issue view *":"allow","gh issue list *":"allow"},"external_directory":"deny"}}'
         with:
           model: opencode/deepseek-v4.1-flash
           prompt: |
