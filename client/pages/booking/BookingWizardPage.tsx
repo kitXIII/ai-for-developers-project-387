@@ -11,14 +11,6 @@ import { StepNameAndConfirm } from './StepNameAndConfirm';
 
 type WizardStep = 1 | 2 | 3;
 
-// Steps of the guest booking wizard, in order; the indicator is plain text
-// («Шаг N из 3») — the Stepper component is deliberately not used.
-const stepTitles: Record<WizardStep, string> = {
-  1: 'Тип',
-  2: 'Дата и время',
-  3: 'Имя и подтверждение',
-};
-
 type WizardLocationState = {
   fromList?: boolean;
 };
@@ -106,8 +98,6 @@ function BookingWizard({ meetingTypeId, fromList }: { meetingTypeId: string; fro
         К выбору типа
       </Anchor>
       <Title order={1}>{meetingType.name}</Title>
-      <Text c="dimmed">Шаг {step} из 3</Text>
-      <Title order={2}>{stepTitles[step]}</Title>
       {step === 1 && (
         <Stack gap="xs">
           <Badge variant="light" color="teal" w="fit-content">
@@ -134,21 +124,21 @@ function BookingWizard({ meetingTypeId, fromList }: { meetingTypeId: string; fro
           onBackToDateTime={() => setStep(2)}
         />
       )}
-      <Group gap="sm">
-        {step > 1 && (
-          <Button
-            variant="default"
-            onClick={() => setStep((current) => (current - 1) as WizardStep)}
-          >
-            Назад
-          </Button>
-        )}
-        {step < 3 && (
+      {step < 3 && (
+        <Group gap="sm">
+          {step > 1 && (
+            <Button
+              variant="default"
+              onClick={() => setStep((current) => (current - 1) as WizardStep)}
+            >
+              Назад
+            </Button>
+          )}
           <Button onClick={() => setStep((current) => (current + 1) as WizardStep)}>
             Продолжить
           </Button>
-        )}
-      </Group>
+        </Group>
+      )}
     </Stack>
   );
 }
