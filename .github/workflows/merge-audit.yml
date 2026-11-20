@@ -1,0 +1,25 @@
+name: merge-audit
+
+# Only the owner merges pull requests (AGENTS.md, "Слияния"). The App token of
+# the agent can merge technically, so this is a detector, not a guard: a merge
+# by anyone else turns the run red.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: merge-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Merge author
+    if: github.event.pull_request.merged == true && github.event.pull_request.merged_by.login != github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "::error::PR #${{ github.event.pull_request.number }} merged by ${{ github.event.pull_request.merged_by.login }}, not by the owner"
+          exit 1
