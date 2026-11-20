@@ -36,6 +36,8 @@ Actions».
   Правила — `docs/agents/auto-triage.md`.
 - Оба прогона работают только внутри checkout: `external_directory` запрещён inline-конфигом, поэтому
   чтение и правка путей вне рабочей копии (`$HOME`, `/tmp`, соседние worktree) недоступны.
+- Раннер ставит OpenCode V1.19.6 (`releases/latest`), поэтому inline-конфиг прав — только V1
+  `permission`; ключ `permissions` (V2) ломает валидацию и роняет прогон до старта агента.
 
 ## Слияния
 

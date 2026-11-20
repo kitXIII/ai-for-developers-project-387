@@ -83,10 +83,11 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GH_TOKEN: ${{ steps.tracker.outputs.token }}
-          # The checkout is the only tree the agent may touch: a read, edit or
-          # search outside it is denied by permissions, so the run cannot
-          # wander into $HOME, /tmp or another runner worktree. Shell commands
-          # inherit the rule for a `cd` outside the repository.
-          OPENCODE_CONFIG_CONTENT: '{"permissions":[{"action":"external_directory","resource":"*","effect":"deny"}]}'
+          # The action installs OpenCode V1.19.6 from `releases/latest`, so the
+          # inline config uses V1 `permission`: V2 `permissions` fails config
+          # validation and the run dies before the agent starts. The checkout
+          # is the only tree the agent may touch; a read, edit, search or `cd`
+          # outside it is denied.
+          OPENCODE_CONFIG_CONTENT: '{"permission":{"external_directory":"deny"}}'
         with:
           model: opencode/deepseek-v4.1-flash
