@@ -31,6 +31,10 @@ const apiErrorMessages: Record<ErrorCode, string> = {
 // 409 codes mean the picked slot is gone or unusable — the fix is another slot.
 const conflictCodes: ErrorCode[] = ['slot_taken', 'outside_window', 'outside_schedule'];
 
+// The submit button sits next to «Назад» in the wizard navigation, outside the
+// form element — the id ties it back to the form so validation and Enter work.
+const formId = 'booking-confirm-form';
+
 export function StepNameAndConfirm({
   meetingTypeId,
   meetingTypeName,
@@ -80,7 +84,16 @@ export function StepNameAndConfirm({
   };
 
   if (!selectedSlot) {
-    return <Text c="dimmed">Сначала выберите дату и время.</Text>;
+    return (
+      <>
+        <Text c="dimmed">Сначала выберите дату и время.</Text>
+        <Group gap="sm">
+          <Button variant="default" onClick={onBackToDateTime}>
+            Назад
+          </Button>
+        </Group>
+      </>
+    );
   }
 
   // Moments carry the +03:00 offset (ADR 0002) — the summary labels come from
@@ -89,30 +102,35 @@ export function StepNameAndConfirm({
   const slotTime = timeRangeLabel(selectedSlot.start, selectedSlot.end);
 
   return (
-    <form onSubmit={handleSubmit}>
-      <Stack gap="sm" w="fit-content" maw="100%">
-        {apiMessage && <Alert color="red">{apiMessage}</Alert>}
-        {apiCode && conflictCodes.includes(apiCode) && (
-          <Button variant="default" w="fit-content" onClick={onBackToDateTime}>
-            Выбрать другое время
-          </Button>
-        )}
-        <Text size="sm" c="dimmed">
-          {meetingTypeName}, {slotDay}, {slotTime} (UTC+3)
-        </Text>
-        <TextInput
-          label="Имя"
-          placeholder="Как к вам обращаться"
-          value={guestName}
-          onChange={(event) => setGuestName(event.currentTarget.value)}
-          error={fieldError}
-        />
-        <Group justify="flex-end" gap="sm">
-          <Button type="submit" loading={createBooking.isPending}>
-            Подтвердить
-          </Button>
-        </Group>
-      </Stack>
-    </form>
+    <>
+      <form id={formId} onSubmit={handleSubmit}>
+        <Stack gap="sm" w="fit-content" maw="100%">
+          {apiMessage && <Alert color="red">{apiMessage}</Alert>}
+          {apiCode && conflictCodes.includes(apiCode) && (
+            <Button variant="default" w="fit-content" onClick={onBackToDateTime}>
+              Выбрать другое время
+            </Button>
+          )}
+          <Text size="sm" c="dimmed">
+            {meetingTypeName}, {slotDay}, {slotTime} (UTC+3)
+          </Text>
+          <TextInput
+            label="Имя"
+            placeholder="Как к вам обращаться"
+            value={guestName}
+            onChange={(event) => setGuestName(event.currentTarget.value)}
+            error={fieldError}
+          />
+        </Stack>
+      </form>
+      <Group gap="sm">
+        <Button variant="default" onClick={onBackToDateTime}>
+          Назад
+        </Button>
+        <Button type="submit" form={formId} loading={createBooking.isPending}>
+          Подтвердить
+        </Button>
+      </Group>
+    </>
   );
 }
