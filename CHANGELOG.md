@@ -4,6 +4,14 @@
 [386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
 Проект 387 — его продолжение; baseline — тег `v0.3.0`.
 
+## [0.5.1](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.5.0...v0.5.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **ci:** вернуть V1 permission в агентских воркфлоу ([029eca1](https://github.com/kitXIII/ai-for-developers-project-387/commit/029eca15eaa70baa81bf0ad338cc140583029a84))
+* **ci:** вернуть V1 permission в агентских воркфлоу ([6340e74](https://github.com/kitXIII/ai-for-developers-project-387/commit/6340e740fd1dfb6c9c21e1bd7e99c3e272c8ea5c)), closes [#37](https://github.com/kitXIII/ai-for-developers-project-387/issues/37)
+
 ## [0.5.0](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.4.1...v0.5.0) (2026-11-19)
 
 
