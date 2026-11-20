@@ -62,7 +62,7 @@ test('бронь гостя видна во вкладке «Бронирова�
   await page.goto('/booking');
   await page.getByRole('link', { name: typeName }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
+  await expect(page.locator('table button').first()).toBeVisible();
 
   await openDayCell(page, nextWeekdays(2)[1]);
 
@@ -73,7 +73,7 @@ test('бронь гостя видна во вкладке «Бронирова�
   const slotLabel = (await targetSlot.textContent())?.trim() ?? '';
   await targetSlot.click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Имя и подтверждение' })).toBeVisible();
+  await expect(page.getByLabel('Имя')).toBeVisible();
 
   const guestName = uniqueName('Игорь');
   await page.getByLabel('Имя').fill(guestName);

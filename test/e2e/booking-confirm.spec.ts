@@ -14,11 +14,11 @@ async function openWizardStepName(page: Page, name: string): Promise<string> {
   await page.goto('/booking');
   await page.getByRole('link', { name }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
+  // Step «Дата и время» is recognised by the calendar grid, not a step title.
+  await page.locator('table button').first().waitFor({ state: 'visible' });
 
   // The first enabled day cell is the first day with slots: today, weekends
   // and days outside the window are disabled (ticket #13).
-  await page.locator('table button').first().waitFor({ state: 'visible' });
   await page.locator('table button:not([disabled])').first().click();
 
   // Slot buttons carry aria-pressed. The specs run in parallel against the
@@ -31,7 +31,7 @@ async function openWizardStepName(page: Page, name: string): Promise<string> {
   const slotLabel = (await targetSlot.textContent())?.trim() ?? '';
   await targetSlot.click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Имя и подтверждение' })).toBeVisible();
+  await expect(page.getByLabel('Имя')).toBeVisible();
   return slotLabel;
 }
 
@@ -66,5 +66,5 @@ test('ошибка валидации формы гостя видна в UI', a
   await expect(nameError).toBeVisible();
 
   // Мастер не уходит с шага подтверждения, пока имя не пройдёт валидацию.
-  await expect(page.getByRole('heading', { name: 'Имя и подтверждение' })).toBeVisible();
+  await expect(page.getByLabel('Имя')).toBeVisible();
 });

@@ -52,7 +52,8 @@ async function openWizardStepDateAndTime(page: Page, name: string): Promise<void
   await page.goto('/booking');
   await page.getByRole('link', { name }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
+  // Step «Дата и время» is recognised by the calendar grid.
+  await expect(page.locator('table button').first()).toBeVisible();
 }
 
 test('шаг «Дата и время» показывает календарь с задизейбленными днями без слотов', async ({
@@ -106,7 +107,7 @@ test('смена типа сбрасывает выбранный слот — �
   await page.goto('/booking');
   await page.getByRole('link', { name: firstName }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
+  await expect(page.locator('table button').first()).toBeVisible();
   await openDayCell(page, firstDay);
   const slot = page.getByRole('button', { name: '09:00–09:30' });
   await expect(slot).toBeVisible();
@@ -117,7 +118,6 @@ test('смена типа сбрасывает выбранный слот — �
   await page.getByRole('link', { name: 'К выбору типа' }).click();
   await page.getByRole('link', { name: secondName }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
   // Ждём сетку календаря (данные слотов пришли), прежде чем искать выбранный
   // слот: пока грузится, утверждение «нет выбранного» проходит досрочно.
   await page.locator('table button').first().waitFor({ state: 'visible' });
@@ -129,7 +129,6 @@ test('смена типа сбрасывает выбранный слот — �
   await page.getByRole('link', { name: 'К выбору типа' }).click();
   await page.getByRole('link', { name: firstName }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
-  await expect(page.getByRole('heading', { name: 'Дата и время' })).toBeVisible();
   await page.locator('table button').first().waitFor({ state: 'visible' });
   await expect(page.locator('[aria-pressed="true"]')).toHaveCount(0);
   await openDayCell(page, firstDay);
