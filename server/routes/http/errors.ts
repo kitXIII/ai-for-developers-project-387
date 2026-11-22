@@ -1,6 +1,6 @@
 import type { ErrorCode } from '@app/api/types';
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { DomainError, type DomainErrorKind } from '../models/errors.js';
+import { DomainError, type DomainErrorKind } from '../../models/errors.js';
 
 // Unified API error: thrown by the adapter (JSON envelope and contract-field
 // checks), serialized as `{ code, message }` by the handler below.

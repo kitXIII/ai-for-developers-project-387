@@ -1,11 +1,10 @@
-import type { Booking as BookingResponse } from '@app/api/types';
 import type { FastifyInstance } from 'fastify';
 import { parseGuestName, type Booking } from '../models/booking.js';
 import type { Schedule } from '../models/schedule.js';
 import type { CreateBookingInput } from '../services/bookings.js';
-import { formatMoment } from '../shared/moment.js';
-import { parseJsonObject } from './body.js';
-import { ApiError } from './errors.js';
+import { parseJsonObject } from './http/body.js';
+import { toContractBooking } from './http/booking.js';
+import { ApiError } from './http/errors.js';
 
 // The adapter checks its own contract fields (ADR 0004); everything else is a
 // scenario. `CreateBookingRequest.start` is an offsetDateTime.
@@ -24,23 +23,6 @@ function parseStartMs(value: unknown): number {
     throw new ApiError(400, 'validation_failed', invalidStartMessage);
   }
   return startMs;
-}
-
-// The contract shape is assembled here, in the only layer that knows the
-// `+03:00` moment format (ADR 0004). The admin route imports the same function:
-// two adapters of one entity do not duplicate the mapping.
-export function toContractBooking(
-  { id, meetingTypeId, meetingTypeName, guestName, startMs, endMs }: Booking,
-  schedule: Schedule,
-): BookingResponse {
-  return {
-    id,
-    meetingTypeId,
-    meetingTypeName,
-    guestName,
-    start: formatMoment(startMs, schedule),
-    end: formatMoment(endMs, schedule),
-  };
 }
 
 type BookingRoutesOptions = {

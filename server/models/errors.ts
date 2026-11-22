@@ -1,6 +1,6 @@
 // Domain errors carry a kind and a message, never an HTTP status (ADR 0004).
 // The single kind → status/code mapping lives in the HTTP adapter
-// (`server/routes/errors.ts`).
+// (`server/routes/http/errors.ts`).
 export type DomainErrorKind =
   | 'not_found'
   | 'invalid_value'
