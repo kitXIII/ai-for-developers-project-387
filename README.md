@@ -95,7 +95,9 @@ PR. Guard-шаг до checkout'а отсекает форк по `.head.repo.for
 
 **Результаты.** Комментарий с ответом в issue или pull request, ветка и PR при изменениях, прогон в
 Actions. Проверки своего PR агент увидеть не может: ветка и PR появляются после его ответа, job на
-этом заканчивается — PR проверяет `quality`.
+этом заканчивается — PR проверяет `quality`. Тело PR оформляется по
+[шаблону](.github/pull_request_template.md): проверки с командами, ссылками на прогоны и SHA, риск,
+откат и данные.
 
 **Авторизация и два App.** Стандартный режим — OIDC и GitHub App
 [`opencode-agent`](https://github.com/apps/opencode-agent): у job есть `contents: read`,
