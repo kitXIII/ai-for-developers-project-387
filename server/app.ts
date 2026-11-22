@@ -4,8 +4,7 @@ import FastifyVite from '@fastify/vite';
 import { DEFAULT_SCHEDULE, assertSchedule, type Schedule } from './models/schedule.js';
 import { inMemoryBookings } from './repositories/bookings.js';
 import { inMemoryMeetingTypes } from './repositories/meeting-types.js';
-import { adminBookingRoutes } from './routes/admin-bookings.js';
-import { adminMeetingTypeRoutes } from './routes/admin-meeting-types.js';
+import { registerAdminRoutes } from './routes/admin/index.js';
 import { bookingRoutes } from './routes/bookings.js';
 import { registerErrorHandler } from './routes/http/errors.js';
 import { meetingTypeRoutes } from './routes/meeting-types.js';
@@ -61,12 +60,10 @@ export async function buildApp({
 
   registerErrorHandler(app);
 
-  await app.register(adminMeetingTypeRoutes, {
+  await app.register(registerAdminRoutes, {
     createMeetingType: createType,
     listMeetingTypes: listAllMeetingTypes,
     getMeetingType: findMeetingType,
-  });
-  await app.register(adminBookingRoutes, {
     listUpcomingBookings: listUpcoming,
     schedule,
   });
