@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Booking } from '../models/booking.js';
 import type { Schedule } from '../models/schedule.js';
-import { toContractBooking } from './bookings.js';
+import { toContractBooking } from './http/booking.js';
 
 type AdminBookingRoutesOptions = {
   listUpcomingBookings: () => Promise<Booking[]>;

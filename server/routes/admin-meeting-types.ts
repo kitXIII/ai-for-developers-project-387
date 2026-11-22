@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { MeetingType } from '../models/meeting-type.js';
-import { parseJsonObject } from './body.js';
+import { parseJsonObject } from './http/body.js';
 
 // Scenarios arrive bound to their dependencies from `buildApp()`: the adapter
 // checks only the JSON envelope and its own contract fields.

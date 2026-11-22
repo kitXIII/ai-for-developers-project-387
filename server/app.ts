@@ -7,7 +7,7 @@ import { inMemoryMeetingTypes } from './repositories/meeting-types.js';
 import { adminBookingRoutes } from './routes/admin-bookings.js';
 import { adminMeetingTypeRoutes } from './routes/admin-meeting-types.js';
 import { bookingRoutes } from './routes/bookings.js';
-import { registerErrorHandler } from './routes/errors.js';
+import { registerErrorHandler } from './routes/http/errors.js';
 import { meetingTypeRoutes } from './routes/meeting-types.js';
 import {
   createBooking,

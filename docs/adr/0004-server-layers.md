@@ -43,8 +43,10 @@ server/
 │   ├── bookings.ts        createBooking / listUpcomingBookings
 │   └── slots.ts           listSlots
 ├── routes/                HTTP-адаптер: конверт, +03:00, коды контракта
-│   ├── body.ts            конверт запроса: JSON-объект или 400
-│   ├── errors.ts          ApiError, errorMap, registerErrorHandler
+│   ├── http/
+│   │   ├── body.ts        конверт запроса: JSON-объект или 400
+│   │   ├── errors.ts      ApiError, errorMap, registerErrorHandler
+│   │   └── booking.ts     доменная бронь → контрактная форма
 │   └── …                  по модулю на поддерево API
 ├── shared/
 │   └── moment.ts          formatMoment(ms, schedule)
@@ -57,7 +59,7 @@ server/
 - `repositories/` — порты и их in-memory адаптеры, по файлу на сущность.
 - `services/` — сценарии по возможностям; зависимости приходят явными объектами.
 - `routes/` — единственное место, где живут HTTP-статусы, коды контракта и форматирование
-  моментов; собирает ответы руками, без отдельного маппера.
+  моментов; собирает ответы руками, без отдельного слоя мапперов.
 - `shared/` — общий для адаптеров код; сегодня это только `formatMoment`.
 - `app.ts` и `index.ts` — только wiring: создают адаптеры и часы, регистрируют обработчик
   ошибок и роуты. Кодов и видов доменных ошибок в `app.ts` нет; единственный живущий здесь
@@ -65,7 +67,7 @@ server/
   за SPA-fallback, а не за маппинг доменных ошибок.
 
 `server/errors.ts` и `server/validation.ts` исчезают: `ApiError` переезжает в
-`server/routes/errors.ts`, проверка JSON-конверта — в адаптер, инварианты значений — в
+`server/routes/http/errors.ts`, проверка JSON-конверта — в адаптер, инварианты значений — в
 умные конструкторы моделей. `server/storage.ts` и `server/slots.ts` умирают вместе с последним
 потребителем (раздел «Порядок реализации и нарезка»).
 
@@ -133,7 +135,7 @@ export class DomainError extends Error {
 }
 ```
 
-Виды — 1:1 с кодами контракта, единственный маппинг живёт в `server/routes/errors.ts`:
+Виды — 1:1 с кодами контракта, единственный маппинг живёт в `server/routes/http/errors.ts`:
 
 | `DomainErrorKind`  | Статус | `ErrorCode`              |
 | ------------------ | ------ | ------------------------ |
@@ -147,10 +149,10 @@ export class DomainError extends Error {
   переводит вид в пару `{ status, code }`. Один вид может нести несколько текстов:
   `outside_schedule` — выходной / вне сетки / конец дня, `invalid_value` — четыре правила
   значения. Различаются формулировки, а не виды.
-- `ApiError` и `errorMap` живут только в `server/routes/errors.ts`; `ErrorCode` из
+- `ApiError` и `errorMap` живут только в `server/routes/http/errors.ts`; `ErrorCode` из
   `@app/api/types` импортирует на сервере только этот модуль. `Record<DomainErrorKind, …>`
   тотален: новый вид не скомпилируется без строки маппинга.
-- Единственный статус вне `routes/errors.ts` — `404` в `setNotFoundHandler` (`app.ts`): он
+- Единственный статус вне `routes/http/errors.ts` — `404` в `setNotFoundHandler` (`app.ts`): он
   отделяет неизвестный `/api` от SPA-fallback (резолюция [#22](https://github.com/kitXIII/ai-for-developers-project-386/issues/22) проекта 386) и с `DomainErrorKind` не связан.
 - Адаптер проверяет конверт и свои контрактные поля: тело — JSON-объект, `meetingTypeId` —
   непустая строка, `start` — ISO-момент со смещением. Тип доменного поля — часть его
@@ -327,7 +329,7 @@ components:
 Форма поставки — один PR фичи, шаг = коммит. Порядок (тикеты ниже — проекта 386):
 
 1. [Слои: типы встреч — модель, порт и сценарии](https://github.com/kitXIII/ai-for-developers-project-386/issues/30):
-   `DomainError`, инварианты типа встречи, порт типов, сценарии, `routes/errors.ts` с
+   `DomainError`, инварианты типа встречи, порт типов, сценарии, `routes/http/errors.ts` с
    единственным маппингом.
 2. [Слои: брони — модель, репозиторий, создание и список предстоящих](https://github.com/kitXIII/ai-for-developers-project-386/issues/31):
    `Schedule` + `assertSchedule`, `formatMoment`, модель брони, `assertSlotBookable`, порт
