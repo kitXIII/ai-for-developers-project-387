@@ -45,9 +45,10 @@ Actions».
   `OPENCODE_API_KEY`, который не даёт записи в репозиторий.
 - Все три прогона работают только внутри checkout: `external_directory` запрещён inline-конфигом,
   поэтому чтение и правка путей вне рабочей копии (`$HOME`, `/tmp`, соседние worktree) недоступны.
-- Все три прогона запускают OpenCode V1.19.6 из локального `.github/actions/opencode` (input
-  `version`), поэтому inline-конфиг прав — только V1 `permission`; ключ `permissions` (V2) ломает
-  валидацию и роняет прогон.
+- `opencode.yml` и `triage.yml` запускают OpenCode V1.19.6 из локального
+  `.github/actions/opencode` (input `version`); `pr-review.yml` ставит ту же версию отдельным шагом,
+  потому что локальный action заканчивается `opencode github run`. Во всех трёх inline-конфиг прав —
+  только V1 `permission`; ключ `permissions` (V2) ломает валидацию и роняет прогон.
 
 ## Слияния
 
