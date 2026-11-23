@@ -214,6 +214,56 @@ issue и правки кода автотриаж не делает — это �
 
 ---
 
+## Защита `main` и релизы
+
+`main` защищён classic branch protection (rulesets не используем: у user-репозитория нет
+bypass-акторов, а текущих правил хватает):
+
+- обязательные проверки — `Quality gates`, `Docker build` и `Architecture gate` из
+  [`quality.yml`](.github/workflows/quality.yml): красный CI в любом из трёх job'ов блокирует мерж;
+- `strict: false` — ветку не нужно обновлять перед мержем: PR короткоживущие, мержит один владелец;
+- обязательных review нет: владелец не может апрувить свой PR, решение о мерже остаётся человеческим;
+- `enforce_admins: true` — прямые пуши в `main` запрещены и владельцу, force-push и удаление ветки
+  тоже;
+- мержит только владелец — правило в `AGENTS.md` («Слияния»), а
+  [`merge-audit.yml`](.github/workflows/merge-audit.yml) ловит нарушение постфактум.
+
+**Проверка настроек:**
+
+```bash
+gh api repos/kitXIII/ai-for-developers-project-387/branches/main/protection \
+  --jq '{checks: [.required_status_checks.checks[].context],
+         strict: .required_status_checks.strict,
+         enforce_admins: .enforce_admins.enabled,
+         force_pushes: .allow_force_pushes.enabled,
+         deletions: .allow_deletions.enabled}'
+# {"checks":["Quality gates","Docker build","Architecture gate"],"strict":false,
+#  "enforce_admins":true,"force_pushes":false,"deletions":false}
+```
+
+**Релизы.** release-please ([`release-please.yml`](.github/workflows/release-please.yml)) работает от
+штатного `GITHUB_TOKEN` при `default_workflow_permissions: read` и
+`can_approve_pull_request_reviews: true`: release-PR создаются, но их проверки ждут ручного
+«Approve workflows to run». Это ожидаемое поведение, а не поломка — владелец подтверждает прогоны,
+потом мержит PR. App-токен вместо `GITHUB_TOKEN` не заводим: вернёмся к вопросу, если ручное
+подтверждение станет частой болью. Живая проверка — на первом реальном release-PR.
+
+**Авария.** Если CI недоступен, а мерж нужен, временно снимается только проверка админов:
+
+```bash
+gh api -X DELETE repos/kitXIII/ai-for-developers-project-387/branches/main/protection/enforce_admins
+# включить обратно сразу после мержа:
+gh api -X POST repos/kitXIII/ai-for-developers-project-387/branches/main/protection/enforce_admins
+```
+
+Полное снятие защиты (`DELETE .../protection`) — крайний случай: вместе с ним уходят обязательные
+проверки.
+
+**Остаточные риски** и их план — #55: allowlist Actions и `required_conversation_resolution`;
+`sha_pinning_required` заблокирован `hexlet-check.yml`, который нельзя менять по `AGENTS.md`.
+
+---
+
 <details>
 <summary>Автоматические тесты Хекслета</summary>
 
