@@ -25,6 +25,9 @@ Actions».
 
 - Команды — `/opencode` и `/oc`. Прогон стартует только от `OWNER`, `MEMBER` или `COLLABORATOR`;
   команды ботов игнорируются, недоверенные комментарии секретов не получают.
+- В PR-треде действует бюджет: три допущенные команды человека, четвёртая получает отказ
+  `limit_exhausted` без вызова модели. Счётчик — история Actions по `run-name` `opencode #<N>` и
+  попыткам, где job `Agent` стартовал; треды issue не ограничены.
 - На раннере стоят `mise` и зависимости: работают `mise run lint`, `mise run typecheck`,
   `mise run test`. Не работают `mise run check` (osv-скану нужна сеть) и `mise run test:e2e` (нет
   Chromium) — это задачи job'а `quality`.
