@@ -37,11 +37,17 @@ Actions».
   для доверенного автора и не для тикета процесса (state-лейбл или `wayfinder:*`); у модели read-only
   токен, `edit` запрещён, `bash` — только чтение трекера, лейблы ставит пост-шаг по маркеру.
   Правила — `docs/agents/auto-triage.md`.
-- Оба прогона работают только внутри checkout: `external_directory` запрещён inline-конфигом, поэтому
-  чтение и правка путей вне рабочей копии (`$HOME`, `/tmp`, соседние worktree) недоступны.
-- Оба прогона запускают OpenCode V1.19.6 из локального `.github/actions/opencode` (input `version`),
-  поэтому inline-конфиг прав — только V1 `permission`; ключ `permissions` (V2) ломает валидацию и
-  роняет прогон.
+- Третий воркфлоу — `.github/workflows/pr-review.yml`: авторевью PR агента на `pull_request`
+  (opened, synchronize, reopened, ready_for_review). Прогон только для PR из этого репозитория от
+  `opencode-agent[bot]` с head-веткой `opencode/` и не draft. Ревью advisory: без approve и request
+  changes, один `gh pr comment`; критерии — корневой `REVIEW.md`. `id-token` и код PR не
+  используются, у модели нет токенов App и трекера, а из секретов — только ключ провайдера
+  `OPENCODE_API_KEY`, который не даёт записи в репозиторий.
+- Все три прогона работают только внутри checkout: `external_directory` запрещён inline-конфигом,
+  поэтому чтение и правка путей вне рабочей копии (`$HOME`, `/tmp`, соседние worktree) недоступны.
+- Все три прогона запускают OpenCode V1.19.6 из локального `.github/actions/opencode` (input
+  `version`), поэтому inline-конфиг прав — только V1 `permission`; ключ `permissions` (V2) ломает
+  валидацию и роняет прогон.
 
 ## Слияния
 
