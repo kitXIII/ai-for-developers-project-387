@@ -273,15 +273,23 @@ jobs:
           # Пути внутри checkout: модель не может читать $RUNNER_TEMP
           # (`external_directory: deny`), поэтому diff и контекст лежат в
           # test-results/.review, который уже gitignored.
+          review_dir="$GITHUB_WORKSPACE/test-results/.review"
+          # `--` обязателен: в V1 `--file` — массив, и без разделителя промпт
+          # читается как ещё один файл («File not found: <промпт>», exit 1).
+          # stderr уходит в лог, поэтому при падении печатаем его: иначе CI
+          # показывает только `exit code 1` без причины.
           opencode run \
             --model opencode/deepseek-v4.1-flash \
             --agent plan \
-            --file "$GITHUB_WORKSPACE/test-results/.review/pr.diff" \
-            --file "$GITHUB_WORKSPACE/test-results/.review/context.md" \
-            "$REVIEW_PROMPT" \
-            > "$GITHUB_WORKSPACE/test-results/.review/review.md" \
-            2> "$GITHUB_WORKSPACE/test-results/.review/opencode.log"
-          test -s "$GITHUB_WORKSPACE/test-results/.review/review.md"
+            --file "$review_dir/pr.diff" \
+            --file "$review_dir/context.md" \
+            -- "$REVIEW_PROMPT" \
+            > "$review_dir/review.md" \
+            2> "$review_dir/opencode.log" || {
+              cat "$review_dir/opencode.log"
+              exit 1
+            }
+          test -s "$review_dir/review.md"
 
       # Отказ в permissions не роняет `opencode run`, поэтому запись проверяем сами:
       # даже если модель что-то записала, рабочее дерево обязано остаться чистым.
