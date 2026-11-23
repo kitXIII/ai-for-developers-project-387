@@ -1,85 +1,51 @@
 import { expect, test, type Page } from '@playwright/test';
-import dayjs from 'dayjs';
-import 'dayjs/locale/ru.js';
-import { createMeetingTypeViaUi } from './helpers.js';
-
-// The mobile and desktop projects run in parallel against the same dev server,
-// so Date.now() alone can collide within a millisecond — add a random suffix.
-// This spec creates several types per run (both its tests run in parallel too).
-const uniqueName = (prefix: string) =>
-  `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+import {
+  addDays,
+  bookableDays,
+  calendarDayLabel,
+  createMeetingTypeViaUi,
+  openDayCell,
+  uniqueName,
+} from './helpers.js';
 
 // The desktop layout starts at 576px, the same breakpoint the rest of the UI
 // uses; below it the wizard keeps the stacked mobile layout.
 const isMobileViewport = (viewport: { width: number } | null) => (viewport?.width ?? 1280) < 576;
 
-// Day cells are labelled by Mantine in the calendar locale (Calendar gets
-// locale="ru"), so the test mirrors the same dayjs format for its targets.
-const label = (iso: string) => dayjs(iso).locale('ru').format('D MMMM YYYY');
-
-// «Сегодня» in the UTC+3 calendar — the server's frame (ADR 0002).
-function todayUtc3(): string {
-  return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
-// The next bookable weekdays: the window starts tomorrow, weekends give no
-// slots (the server omits them, the calendar disables them).
-function nextWeekdays(count: number): string[] {
-  const days: string[] = [];
-  let date = Date.parse(`${todayUtc3()}T12:00:00Z`);
-  while (days.length < count) {
-    date += 24 * 60 * 60 * 1000;
-    const iso = new Date(date).toISOString().slice(0, 10);
-    const weekday = new Date(`${iso}T12:00:00Z`).getUTCDay();
-    if (weekday !== 0 && weekday !== 6) {
-      days.push(iso);
-    }
-  }
-  return days;
-}
-
-// Clicks a day cell, paging forward if the day is in a later month.
-async function openDayCell(page: Page, iso: string): Promise<void> {
-  const cell = page.getByRole('button', { name: label(iso) });
-  const nextMonth = page.getByRole('button', { name: 'Следующий месяц' });
-  // The step shows a loader while the slots load — wait for the calendar grid
-  // before paging, otherwise a blind click lands in the wrong month.
-  await page.locator('table button').first().waitFor({ state: 'visible' });
-  for (let attempt = 0; attempt < 3 && !(await cell.isVisible()); attempt += 1) {
-    await nextMonth.click();
-  }
-  await cell.click();
-}
-
-async function openWizardStepDateAndTime(page: Page, name: string): Promise<void> {
-  await createMeetingTypeViaUi(page, name);
+async function openWizardStepDateAndTime(page: Page, name: string): Promise<string> {
+  const typeId = await createMeetingTypeViaUi(page, name);
   await page.goto('/booking');
   await page.getByRole('link', { name }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   // Step «Дата и время» is recognised by the calendar grid.
   await expect(page.locator('table button').first()).toBeVisible();
+  return typeId;
 }
 
 test('шаг «Дата и время» показывает календарь с задизейбленными днями без слотов', async ({
   page,
+  request,
 }) => {
   const name = uniqueName('Консультация');
-  await openWizardStepDateAndTime(page, name);
+  const typeId = await openWizardStepDateAndTime(page, name);
 
-  // Сегодня не бронируется никогда, и день вне окна записи тоже не даёт слотов.
+  // Сегодня не бронируется никогда, и день до окна записи тоже не даёт слотов.
   await expect(page.locator('button[data-today]')).toBeDisabled();
-  const yesterday = new Date(Date.parse(`${todayUtc3()}T12:00:00Z`) - 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-  await expect(page.getByRole('button', { name: label(yesterday) })).toBeDisabled();
+  const [firstDay] = await bookableDays(request, typeId);
+  await expect(
+    page.getByRole('button', { name: calendarDayLabel(addDays(firstDay, -1)) }),
+  ).toBeDisabled();
 });
 
-test('выбранный день показывает слоты; смена дня сбрасывает выбранный слот', async ({ page }) => {
+test('выбранный день показывает слоты; смена дня сбрасывает выбранный слот', async ({
+  page,
+  request,
+}) => {
   const name = uniqueName('Созвон');
-  await openWizardStepDateAndTime(page, name);
+  const typeId = await openWizardStepDateAndTime(page, name);
 
   // Тип создан с длительностью 30 минут: сетка от 09:00, первый слот 09:00–09:30.
-  const [firstDay, secondDay] = nextWeekdays(2);
+  const [firstDay, secondDay] = await bookableDays(request, typeId);
 
   await openDayCell(page, firstDay);
   const slot = page.getByRole('button', { name: '09:00–09:30' });
@@ -98,13 +64,14 @@ test('выбранный день показывает слоты; смена д
 // первого дня, admin-bookings — второй будний день).
 test('смена типа сбрасывает выбранный слот — выбор не переживает возврат к типу', async ({
   page,
+  request,
 }) => {
   const firstName = uniqueName('Созвон');
   const secondName = uniqueName('Консультация');
-  await createMeetingTypeViaUi(page, firstName);
+  const firstTypeId = await createMeetingTypeViaUi(page, firstName);
   await createMeetingTypeViaUi(page, secondName);
 
-  const firstDay = nextWeekdays(2)[0];
+  const [firstDay] = await bookableDays(request, firstTypeId);
 
   // Тип 1: выбран день и первый слот 09:00–09:30 (первый слот свободен у всех
   // спек: booking-confirm берёт 2-й и 3-й слоты этого дня).
@@ -144,12 +111,13 @@ test('смена типа сбрасывает выбранный слот — �
 test('на десктопе слоты стоят справа от календаря в колонке с внутренней прокруткой', async ({
   page,
   viewport,
+  request,
 }) => {
   test.skip(isMobileViewport(viewport), 'только десктопный проект');
 
   const name = uniqueName('Раскладка');
-  await openWizardStepDateAndTime(page, name);
-  const firstDay = nextWeekdays(1)[0];
+  const typeId = await openWizardStepDateAndTime(page, name);
+  const [firstDay] = await bookableDays(request, typeId);
   await openDayCell(page, firstDay);
 
   const calendar = page.locator('table');
@@ -194,12 +162,12 @@ test('на десктопе слоты стоят справа от календ
   );
 });
 
-test('на мобильном слоты остаются под календарём', async ({ page, viewport }) => {
+test('на мобильном слоты остаются под календарём', async ({ page, viewport, request }) => {
   test.skip(!isMobileViewport(viewport), 'только мобильный проект');
 
   const name = uniqueName('Раскладка');
-  await openWizardStepDateAndTime(page, name);
-  const firstDay = nextWeekdays(1)[0];
+  const typeId = await openWizardStepDateAndTime(page, name);
+  const [firstDay] = await bookableDays(request, typeId);
   await openDayCell(page, firstDay);
 
   const firstSlot = page.getByRole('button', { name: '09:00–09:30' });
@@ -221,13 +189,14 @@ test('на мобильном слоты остаются под календа�
 test('на ширине 576 px слоты уже справа от календаря и блок вписывается в окно', async ({
   page,
   viewport,
+  request,
 }) => {
   test.skip(isMobileViewport(viewport), 'только десктопный проект');
   await page.setViewportSize({ width: 576, height: 720 });
 
   const name = uniqueName('Раскладка');
-  await openWizardStepDateAndTime(page, name);
-  const firstDay = nextWeekdays(1)[0];
+  const typeId = await openWizardStepDateAndTime(page, name);
+  const [firstDay] = await bookableDays(request, typeId);
   await openDayCell(page, firstDay);
 
   const firstSlot = page.getByRole('button', { name: '09:00–09:30' });

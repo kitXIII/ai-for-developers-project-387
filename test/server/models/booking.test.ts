@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { draftBooking, parseGuestName } from '../../../server/models/booking.js';
-import { DomainError } from '../../../server/models/errors.js';
+import { DomainError } from '../../../server/models/utils/errors.js';
 import type { MeetingType } from '../../../server/models/meeting-type.js';
 import { ms } from '../fixtures.js';
 

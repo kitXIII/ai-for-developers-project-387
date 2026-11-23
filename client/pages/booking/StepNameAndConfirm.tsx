@@ -5,6 +5,7 @@ import { zCreateBookingRequest } from '@app/api/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { errorCode, isSlotConflict, type SlotConflictCode } from '../../lib/api-errors';
 import { dayLabel, timeRangeLabel } from '../../lib/datetime';
 
 type StepNameAndConfirmProps = {
@@ -12,24 +13,31 @@ type StepNameAndConfirmProps = {
   meetingTypeName: string;
   // The picked slot; without it there is nothing to confirm.
   selectedSlot: Slot | null;
+  // The name outlives a step change: a conflict returns here with it filled in.
+  guestName: string;
+  onGuestNameChange: (guestName: string) => void;
   // Hands the created booking up to the wizard for the success screen.
   onBooked: (booking: Booking) => void;
   // Returns to step «Дата и время» — the way out of a taken slot.
   onBackToDateTime: () => void;
+  // A 409 means the picked slot is unusable: the wizard clears it and goes back.
+  onSlotConflict: (code: SlotConflictCode) => void;
 };
 
-// One understandable Russian phrase per contract error code the operation can
-// answer with; the code decides the meaning, this map decides the wording.
-const apiErrorMessages: Record<ErrorCode, string> = {
+// Non-conflict contract errors that stay on this step: a 409 is handled by
+// `isSlotConflict` above, so its texts live only in `slotConflictMessages`.
+type HandledErrorCode = Extract<ErrorCode, 'validation_failed' | 'meeting_type_not_found'>;
+
+const apiErrorMessages: Record<HandledErrorCode, string> = {
   validation_failed: 'Проверьте правильность заполнения формы.',
   meeting_type_not_found: 'Тип встречи не найден.',
-  slot_taken: 'Это время уже занято. Выберите другой слот.',
-  outside_window: 'Это время вне окна записи: бронировать можно на 14 дней вперёд.',
-  outside_schedule: 'Это время вне графика работы: брони доступны в будни с 09:00 до 18:00.',
 };
 
-// 409 codes mean the picked slot is gone or unusable — the fix is another slot.
-const conflictCodes: ErrorCode[] = ['slot_taken', 'outside_window', 'outside_schedule'];
+const genericApiMessage = 'Не удалось создать бронирование. Попробуйте ещё раз.';
+
+function isHandledErrorCode(code: string): code is HandledErrorCode {
+  return Object.hasOwn(apiErrorMessages, code);
+}
 
 // The submit button sits next to «Назад» in the wizard navigation, outside the
 // form element — the id ties it back to the form so validation and Enter work.
@@ -39,27 +47,29 @@ export function StepNameAndConfirm({
   meetingTypeId,
   meetingTypeName,
   selectedSlot,
+  guestName,
+  onGuestNameChange,
   onBooked,
   onBackToDateTime,
+  onSlotConflict,
 }: StepNameAndConfirmProps) {
-  const [guestName, setGuestName] = useState('');
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const [apiCode, setApiCode] = useState<ErrorCode | null>(null);
   const [apiMessage, setApiMessage] = useState<string | null>(null);
 
   const createBooking = useMutation({
     ...createBookingMutation(),
     onSuccess: (booking) => onBooked(booking),
     onError: (error) => {
-      // Contract errors carry the machine-readable code; anything else
-      // (network, unexpected) stays a generic failure.
-      if ('code' in error && error.code in apiErrorMessages) {
-        setApiCode(error.code);
-        setApiMessage(apiErrorMessages[error.code]);
-      } else {
-        setApiCode(null);
-        setApiMessage('Не удалось создать бронирование. Попробуйте ещё раз.');
+      // All three 409 codes take the same way out: back to the slot list with
+      // the conflict explained there. Other contract errors stay on this step.
+      if (isSlotConflict(error)) {
+        onSlotConflict(error.code);
+        return;
       }
+      const code = errorCode(error);
+      setApiMessage(
+        code !== null && isHandledErrorCode(code) ? apiErrorMessages[code] : genericApiMessage,
+      );
     },
   });
 
@@ -78,7 +88,6 @@ export function StepNameAndConfirm({
       return;
     }
     setFieldError(null);
-    setApiCode(null);
     setApiMessage(null);
     createBooking.mutate({ body: parsed.data });
   };
@@ -106,11 +115,6 @@ export function StepNameAndConfirm({
       <form id={formId} onSubmit={handleSubmit}>
         <Stack gap="sm" w="fit-content" maw="100%">
           {apiMessage && <Alert color="red">{apiMessage}</Alert>}
-          {apiCode && conflictCodes.includes(apiCode) && (
-            <Button variant="default" w="fit-content" onClick={onBackToDateTime}>
-              Выбрать другое время
-            </Button>
-          )}
           <Text size="sm" c="dimmed">
             {meetingTypeName}, {slotDay}, {slotTime} (UTC+3)
           </Text>
@@ -118,7 +122,7 @@ export function StepNameAndConfirm({
             label="Имя"
             placeholder="Как к вам обращаться"
             value={guestName}
-            onChange={(event) => setGuestName(event.currentTarget.value)}
+            onChange={(event) => onGuestNameChange(event.currentTarget.value)}
             error={fieldError}
           />
         </Stack>

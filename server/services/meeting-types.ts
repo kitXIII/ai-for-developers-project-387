@@ -1,4 +1,4 @@
-import { DomainError } from '../models/errors.js';
+import { DomainError } from '../models/utils/errors.js';
 import { parseMeetingTypeData, type MeetingType } from '../models/meeting-type.js';
 import type { MeetingTypeRepository } from '../repositories/meeting-types.js';
 

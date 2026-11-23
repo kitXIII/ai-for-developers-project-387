@@ -1,10 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createMeetingTypeViaUi } from './helpers.js';
-
-// The mobile and desktop projects run in parallel against the same dev server,
-// so Date.now() alone can collide within a millisecond — add a random suffix.
-const uniqueName = (prefix: string) =>
-  `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+import { createMeetingTypeViaUi, uniqueName } from './helpers.js';
 
 // Opens the wizard on step «Имя и подтверждение» with the first free day and
 // one of its first slots picked; returns the label of the picked slot

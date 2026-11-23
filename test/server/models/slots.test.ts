@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomainError } from '../../../server/models/errors.js';
+import { DomainError } from '../../../server/models/utils/errors.js';
 import type { Schedule } from '../../../server/models/schedule.js';
 import {
   assertSlotBookable,
