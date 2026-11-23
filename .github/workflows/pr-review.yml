@@ -64,7 +64,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          review_dir="$RUNNER_TEMP/review"
+          # Файлы, которые читает модель, лежат внутри checkout: в её конфиге
+          # `external_directory: deny`, поэтому $RUNNER_TEMP она прочитать не
+          # смогла бы. test-results/ уже в .gitignore, так что проверка чистого
+          # дерева после прогона на этих файлах не срабатывает.
+          review_dir="$GITHUB_WORKSPACE/test-results/.review"
           mkdir -p "$review_dir"
 
           pr_body="$review_dir/pr-body.md"
@@ -195,7 +199,9 @@ jobs:
           set -euo pipefail
           # Номера строк в замечаниях — из head SHA; checkout обязан стоять на нём.
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
-          review_dir="$RUNNER_TEMP/review"
+          # Тот же каталог внутри checkout, что и у контекста: модель читает
+          # только рабочую копию (external_directory: deny).
+          review_dir="$GITHUB_WORKSPACE/test-results/.review"
           mkdir -p "$review_dir"
           # Трёхточечный diff: только изменения PR относительно merge-base.
           git diff --no-color --merge-base "$BASE_SHA" HEAD > "$review_dir/pr.diff"
@@ -264,14 +270,18 @@ jobs:
             changes, не предлагай мерж и не правь код: итог — только комментарий.
         run: |
           set -euo pipefail
+          # Пути внутри checkout: модель не может читать $RUNNER_TEMP
+          # (`external_directory: deny`), поэтому diff и контекст лежат в
+          # test-results/.review, который уже gitignored.
           opencode run \
             --model opencode/deepseek-v4.1-flash \
             --agent plan \
-            --file "$RUNNER_TEMP/review/pr.diff" \
-            --file "$RUNNER_TEMP/review/context.md" \
+            --file "$GITHUB_WORKSPACE/test-results/.review/pr.diff" \
+            --file "$GITHUB_WORKSPACE/test-results/.review/context.md" \
             "$REVIEW_PROMPT" \
-            > "$RUNNER_TEMP/review/review.md" 2> "$RUNNER_TEMP/review/opencode.log"
-          test -s "$RUNNER_TEMP/review/review.md"
+            > "$GITHUB_WORKSPACE/test-results/.review/review.md" \
+            2> "$GITHUB_WORKSPACE/test-results/.review/opencode.log"
+          test -s "$GITHUB_WORKSPACE/test-results/.review/review.md"
 
       # Отказ в permissions не роняет `opencode run`, поэтому запись проверяем сами:
       # даже если модель что-то записала, рабочее дерево обязано остаться чистым.
@@ -291,7 +301,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          review_dir="$RUNNER_TEMP/review"
+          review_dir="$GITHUB_WORKSPACE/test-results/.review"
           comment="$review_dir/comment.md"
           {
             printf '## Авторевью PR #%s\n\n' "$PR_NUMBER"
