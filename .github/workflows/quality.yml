@@ -68,6 +68,10 @@ jobs:
       - uses: mokevnin/easement@1eeaecd8451ed08e0f1203542788a77c8d98c71a
         with:
           diff: origin/main
+          # Same version as mise.toml. The action installs `latest` by default,
+          # and the floating binary already moved to a config schema that rejects
+          # this repository's `uncovered_ok`; the gate must match the local run.
+          version: 0.6.6
 
   # Браузерные тесты на точном головном коммите pull request: `Quality gates`
   # гоняет e2e на merge-коммите, поэтому его зелёный результат не доказывает
