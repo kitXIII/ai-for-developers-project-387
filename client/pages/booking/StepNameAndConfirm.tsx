@@ -5,7 +5,7 @@ import { zCreateBookingRequest } from '@app/api/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { isSlotConflict, slotConflictMessages, type SlotConflictCode } from '../../lib/api-errors';
+import { errorCode, isSlotConflict, type SlotConflictCode } from '../../lib/api-errors';
 import { dayLabel, timeRangeLabel } from '../../lib/datetime';
 
 type StepNameAndConfirmProps = {
@@ -24,13 +24,20 @@ type StepNameAndConfirmProps = {
   onSlotConflict: (code: SlotConflictCode) => void;
 };
 
-// One understandable Russian phrase per contract error code the operation can
-// answer with; the code decides the meaning, this map decides the wording.
-const apiErrorMessages: Record<ErrorCode, string> = {
+// Non-conflict contract errors that stay on this step: a 409 is handled by
+// `isSlotConflict` above, so its texts live only in `slotConflictMessages`.
+type HandledErrorCode = Extract<ErrorCode, 'validation_failed' | 'meeting_type_not_found'>;
+
+const apiErrorMessages: Record<HandledErrorCode, string> = {
   validation_failed: 'Проверьте правильность заполнения формы.',
   meeting_type_not_found: 'Тип встречи не найден.',
-  ...slotConflictMessages,
 };
+
+const genericApiMessage = 'Не удалось создать бронирование. Попробуйте ещё раз.';
+
+function isHandledErrorCode(code: string): code is HandledErrorCode {
+  return Object.hasOwn(apiErrorMessages, code);
+}
 
 // The submit button sits next to «Назад» in the wizard navigation, outside the
 // form element — the id ties it back to the form so validation and Enter work.
@@ -59,11 +66,10 @@ export function StepNameAndConfirm({
         onSlotConflict(error.code);
         return;
       }
-      if ('code' in error && error.code in apiErrorMessages) {
-        setApiMessage(apiErrorMessages[error.code]);
-      } else {
-        setApiMessage('Не удалось создать бронирование. Попробуйте ещё раз.');
-      }
+      const code = errorCode(error);
+      setApiMessage(
+        code !== null && isHandledErrorCode(code) ? apiErrorMessages[code] : genericApiMessage,
+      );
     },
   });
 
