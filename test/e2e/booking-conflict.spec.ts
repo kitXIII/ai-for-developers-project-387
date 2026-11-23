@@ -1,24 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  bookableDays,
   createMeetingTypeViaUi,
-  nextWeekdays,
   openDayCell,
   slotsDayLabel,
   uniqueName,
 } from './helpers.js';
 
-// The booking window is D+1…D+14 and holds ten weekdays. The last two are the
-// far end of the window: no other booking spec books there, so the two projects
-// of this spec get a day each without depending on another spec's slot order.
-const bookingWindowWeekdays = nextWeekdays(10);
-
-// Opens the wizard of a freshly created type on step «Дата и время».
-async function openWizardDateAndTime(page: Page, name: string): Promise<void> {
-  await createMeetingTypeViaUi(page, name);
+// Opens the wizard of a freshly created type on step «Дата и время» and returns
+// the type id, so the caller can ask the server which days it offers.
+async function openWizardDateAndTime(page: Page, name: string): Promise<string> {
+  const typeId = await createMeetingTypeViaUi(page, name);
   await page.goto('/booking');
   await page.getByRole('link', { name }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.locator('table button').first()).toBeVisible();
+  return typeId;
 }
 
 // Books the given day and time label as a different guest in another browser
@@ -46,18 +43,22 @@ async function bookSameSlotAsOtherGuest(
 test('гость, проигравший слот, возвращается на шаг времени и бронирует другое время', async ({
   browser,
   page,
+  request,
 }) => {
   const typeA = uniqueName('Гонка');
   const guestName = uniqueName('Ольга');
-  // Each project takes its own of the last two weekdays of the window.
-  const day =
-    bookingWindowWeekdays[
-      bookingWindowWeekdays.length - (test.info().project.name === 'desktop' ? 1 : 2)
-    ];
 
   // Guest A: reaches the confirmation step and fills the name, but keeps the
   // filled form open while guest B books the same wall-clock time.
-  await openWizardDateAndTime(page, typeA);
+  const typeAId = await openWizardDateAndTime(page, typeA);
+
+  // The server names the bookable days in its own frame (ADR 0002). The last
+  // two weekdays are the far end of the window: no other booking spec books
+  // there, so the two projects of this spec get a day each without depending on
+  // another spec's slot order.
+  const days = await bookableDays(request, typeAId);
+  const day = days[days.length - (test.info().project.name === 'desktop' ? 1 : 2)];
+
   await openDayCell(page, day);
   const slotButtons = page.locator('button[aria-pressed]');
   const takenSlot = slotButtons.first();
@@ -69,8 +70,8 @@ test('гость, проигравший слот, возвращается на
   await page.getByLabel('Имя').fill(guestName);
 
   // Guest B, a separate browser context: books the same slot under a different
-  // meeting type.
-  const guestBContext = await browser.newContext();
+  // meeting type. A raw context does not inherit `use.baseURL`, so pass it in.
+  const guestBContext = await browser.newContext({ baseURL: test.info().project.use.baseURL });
   try {
     await bookSameSlotAsOtherGuest(
       await guestBContext.newPage(),
@@ -113,20 +114,19 @@ test('гость, проигравший слот, возвращается на
 // so the POST is answered here; the guest sees the same way out as slot_taken.
 test('outside_window и outside_schedule ведут тем же путём, что и занятый слот', async ({
   page,
+  request,
 }) => {
   const typeName = uniqueName('Коды');
   const guestName = uniqueName('Гость');
-  // The two weekdays before the race spec's: no other spec books on them.
-  const day =
-    bookingWindowWeekdays[
-      bookingWindowWeekdays.length - (test.info().project.name === 'desktop' ? 3 : 4)
-    ];
   const conflicts = [
     ['outside_window', 'Это время вне окна записи: бронировать можно на 14 дней вперёд.'],
     ['outside_schedule', 'Это время вне графика работы: брони доступны в будни с 09:00 до 18:00.'],
   ] as const;
 
-  await openWizardDateAndTime(page, typeName);
+  const typeId = await openWizardDateAndTime(page, typeName);
+  // The two weekdays before the race spec's: no other spec books on them.
+  const days = await bookableDays(request, typeId);
+  const day = days[days.length - (test.info().project.name === 'desktop' ? 3 : 4)];
   await openDayCell(page, day);
   const slot = page.locator('button[aria-pressed]').first();
   const slotLabel = (await slot.textContent())?.trim() ?? '';

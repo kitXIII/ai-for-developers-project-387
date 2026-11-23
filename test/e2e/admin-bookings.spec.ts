@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
+  bookableDays,
   createMeetingTypeViaUi,
-  nextWeekdays,
   openDayCell,
   slotsDayLabel,
   uniqueName,
@@ -12,20 +12,23 @@ import {
 // booking in the «Бронирования» tab and checks the guest name and the time.
 test('бронь гостя видна во вкладке «Бронирования» — владелец сверяет имя и время', async ({
   page,
+  request,
 }) => {
   // С1: владелец создаёт тип встречи в «Администрировании».
   const typeName = uniqueName('Знакомство');
-  await createMeetingTypeViaUi(page, typeName);
+  const typeId = await createMeetingTypeViaUi(page, typeName);
 
   // С2: гость проходит мастер и бронирует свободный слот. Второй будний день
   // окна: первый день у booking-confirm.spec (его 2-й и 3-й слоты), этот день
-  // бронирует только данная спека — коллизий между проектами нет.
+  // бронирует только данная спека — коллизий между проектами нет. Дни называет
+  // сервер в своём кадре (GET /slots), а не тест с захардкоженным офсетом.
+  const [, secondDay] = await bookableDays(request, typeId);
   await page.goto('/booking');
   await page.getByRole('link', { name: typeName }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.locator('table button').first()).toBeVisible();
 
-  await openDayCell(page, nextWeekdays(2)[1]);
+  await openDayCell(page, secondDay);
 
   // Два проекта этой спеки берут соседние слоты дня: какой бы ни успел первым,
   // второй сдвигается на более позднее время и не пересекается с первым.
@@ -44,7 +47,7 @@ test('бронь гостя видна во вкладке «Бронирова�
   // С3: владелец открывает вкладку «Бронирования» и сверяет время и имя гостя.
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Бронирования' }).click();
-  const whenLabel = `${slotsDayLabel(nextWeekdays(2)[1])}, ${slotLabel}`;
+  const whenLabel = `${slotsDayLabel(secondDay)}, ${slotLabel}`;
   const row = page.getByRole('row').filter({ hasText: guestName });
   await expect(row, 'бронь гостя видна в списке').toBeVisible();
   await expect(row).toContainText(typeName);
