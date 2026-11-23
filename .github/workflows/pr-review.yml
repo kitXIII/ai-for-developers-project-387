@@ -1,0 +1,311 @@
+name: pr-review
+
+# Авторевью pull request агента. Это отдельный воркфлоу, а не `opencode github run`:
+# он сам готовит diff и контекст, модель только пишет текст, а комментарий публикует
+# отдельный шаг `gh pr comment`. Так у модели нет записи в репозиторий, а код PR не
+# исполняется. Решение — docs/adr/0006-pr-autoreview-and-head-sha-check.md.
+#
+# Release-please PR отсекаются условием автора: их открывает
+# `googleapis/release-please-action` на GITHUB_TOKEN, а не `opencode-agent[bot]`.
+# PR из форков не проходят проверку `head.repo.full_name == github.repository`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  # Новый push в тот же PR отменяет устаревшее ревью: комментировать прошлый
+  # head SHA бессмысленно. Группа своя у каждого PR, чужие прогоны не страдают.
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Agent PR review
+    if: |
+      github.event.pull_request.user.type == 'Bot' &&
+      github.event.pull_request.user.login == 'opencode-agent[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'opencode/') &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      # checkout и чтение файлов PR.
+      contents: read
+      # Тело спеки и комментарий согласования.
+      issues: read
+      # Прогоны на head SHA: ревью ссылается на них, но не заменяет CI.
+      actions: read
+      # Единственная запись — итоговый комментарий `gh pr comment`.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # base.sha должен быть в локальном репозитории для `git diff --merge-base`;
+          # без полной истории diff не построить.
+          fetch-depth: 0
+          # Токен не остаётся в .git/config: модели нечем пушить даже при ошибке прав.
+          persist-credentials: false
+          # Ревью идёт по точному head SHA, а не по merge-коммиту: номера строк в
+          # замечаниях должны совпадать с критерием REVIEW.md, «Формат замечаний».
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # Контекст собирает workflow, а не модель: сети у модели нет, и `gh` ей
+      # недоступен. Всё, что можно проверить детерминированно (наличие спеки,
+      # согласования и их автор), проверяется здесь, а не в промпте.
+      - name: Build review context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          review_dir="$RUNNER_TEMP/review"
+          mkdir -p "$review_dir"
+
+          pr_body="$review_dir/pr-body.md"
+          jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$pr_body"
+
+          gaps="$review_dir/gaps.md"
+          : > "$gaps"
+
+          # Пробел процесса, который workflow фиксирует сам. Модель может его
+          # пропустить, но комментарий обязан показать его как blocking.
+          add_gap() {
+            {
+              printf -- '- blocking — %s — %s.\n' "$1" "$2"
+              printf '  Критерий: REVIEW.md, «Источники правды».\n'
+            } >> "$gaps"
+          }
+
+          spec_status='спека не указана: в теле PR нет строки «Спека: #N».'
+          spec_file="$review_dir/spec.md"
+          spec_number=$(grep -m 1 -oE 'Спека:[^#]*#[0-9]+' "$pr_body" | grep -oE '[0-9]+$' || true)
+          if [ -z "$spec_number" ]; then
+            printf '%s\n' "$spec_status" > "$spec_file"
+            add_gap 'тело PR' 'нет строки «Спека: #N», поэтому сверить поведение со спекой нечем'
+          elif spec_body=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${spec_number}" \
+            --jq .body 2> "$review_dir/spec-error.log"); then
+            printf '%s\n' "$spec_body" > "$spec_file"
+            spec_status="спека #${spec_number}: тело получено"
+          else
+            printf 'Спека #%s недоступна.\n' "$spec_number" > "$spec_file"
+            spec_status="спека #${spec_number}: недоступна"
+            add_gap "\`Спека: #${spec_number}\`" 'тело спеки не удалось получить через GitHub API'
+          fi
+
+          approval_file="$review_dir/approval.md"
+          approval_status='согласование не указано.'
+          approval_url=$(grep -m 1 -E 'Согласование:' "$pr_body" \
+            | grep -oE 'https://[^ )>]+' | head -n 1 || true)
+          approval_re='^https://github\.com/([^/]+)/([^/]+)/issues/[0-9]+#issuecomment-([0-9]+)$'
+          if [ -z "$approval_url" ]; then
+            printf '%s\n' "$approval_status" > "$approval_file"
+            add_gap 'тело PR' 'нет строки «Согласование: <permalink>»'
+          elif [[ "$approval_url" =~ $approval_re ]]; then
+            approval_owner="${BASH_REMATCH[1]}"
+            approval_repo="${BASH_REMATCH[2]}"
+            comment_id="${BASH_REMATCH[3]}"
+            expected_repo=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+            found_repo=$(printf '%s/%s' "$approval_owner" "$approval_repo" | tr '[:upper:]' '[:lower:]')
+            if [ "$found_repo" != "$expected_repo" ]; then
+              printf 'Ссылка ведёт в другой репозиторий: %s\n' "$approval_url" > "$approval_file"
+              approval_status='ссылка ведёт в другой репозиторий.'
+              add_gap "\`${approval_url}\`" 'согласование должно быть в этом репозитории'
+            elif gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              > "$review_dir/approval.json" 2> "$review_dir/approval-error.log"; then
+              approval_author=$(jq -r '.user.login // "неизвестен"' "$review_dir/approval.json")
+              approval_association=$(jq -r '.author_association // "NONE"' "$review_dir/approval.json")
+              approval_body=$(jq -r '.body // ""' "$review_dir/approval.json")
+              has_marker=no
+              if grep -qF -- '<!-- spec-approval -->' <<< "$approval_body"; then
+                has_marker=yes
+              fi
+              {
+                printf 'Ссылка: %s\n' "$approval_url"
+                printf 'Автор: %s (%s)\n' "$approval_author" "$approval_association"
+                printf 'Маркер <!-- spec-approval -->: %s\n\n' "$has_marker"
+                printf '%s\n' "$approval_body"
+              } > "$approval_file"
+              if [ "$approval_association" != 'OWNER' ]; then
+                approval_status="согласование оставил ${approval_author} (${approval_association}), а не владелец."
+                add_gap "\`${approval_url}\`" "согласование оставил не владелец репозитория (${approval_association})"
+              elif [ "$has_marker" != 'yes' ]; then
+                approval_status='в комментарии согласования нет маркера <!-- spec-approval -->.'
+                add_gap "\`${approval_url}\`" 'в комментарии нет маркера <!-- spec-approval -->'
+              else
+                approval_status="согласование: ${approval_author} (OWNER), маркер на месте."
+              fi
+            else
+              printf 'Комментарий согласования недоступен: %s\n' "$approval_url" > "$approval_file"
+              approval_status='комментарий согласования недоступен.'
+              add_gap "\`${approval_url}\`" 'комментарий согласования не удалось получить через GitHub API'
+            fi
+          else
+            printf 'Ссылка согласования не распознана: %s\n' "$approval_url" > "$approval_file"
+            approval_status='ссылка согласования не распознана.'
+            add_gap "\`${approval_url}\`" 'ссылка не похожа на комментарий issue этого репозитория'
+          fi
+
+          if [ -f REVIEW.md ]; then
+            cp REVIEW.md "$review_dir/REVIEW.md"
+          else
+            printf 'REVIEW.md отсутствует в checkout.\n' > "$review_dir/REVIEW.md"
+            add_gap 'REVIEW.md' 'файл критериев отсутствует в head SHA, ревьюить не по чему'
+          fi
+
+          runs_file="$review_dir/runs.md"
+          if gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${HEAD_SHA}&per_page=100" \
+            --jq '.workflow_runs[] | "- \(.name): \(.status); вывод: \(.conclusion // "нет"): \(.html_url)"' \
+            > "$runs_file" 2> "$review_dir/runs-error.log"; then
+            [ -s "$runs_file" ] || printf 'Прогонов на head SHA пока нет.\n' > "$runs_file"
+          else
+            printf 'Прогоны на head SHA получить не удалось.\n' > "$runs_file"
+          fi
+
+          context="$review_dir/context.md"
+          {
+            printf '# Контекст авторевью PR #%s\n\n' "$PR_NUMBER"
+            printf 'Head SHA: %s. Merge-base: %s.\n\n' "$HEAD_SHA" "$BASE_SHA"
+            printf '## Тело pull request\n\n'
+            cat "$pr_body"
+            printf '\n\n## Спека\n\n%s\n\n' "$spec_status"
+            cat "$spec_file"
+            printf '\n## Согласование\n\n%s\n\n' "$approval_status"
+            cat "$approval_file"
+            printf '\n## Прогоны CI на head SHA\n\n'
+            cat "$runs_file"
+            printf '\n## Процессные пробелы\n\n'
+            if [ -s "$gaps" ]; then cat "$gaps"; else printf 'Не обнаружены.\n'; fi
+            printf '\n## REVIEW.md\n\n'
+            cat "$review_dir/REVIEW.md"
+          } > "$context"
+          test -s "$context"
+
+      - name: Build PR diff
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Номера строк в замечаниях — из head SHA; checkout обязан стоять на нём.
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          review_dir="$RUNNER_TEMP/review"
+          mkdir -p "$review_dir"
+          # Трёхточечный diff: только изменения PR относительно merge-base.
+          git diff --no-color --merge-base "$BASE_SHA" HEAD > "$review_dir/pr.diff"
+          test -s "$review_dir/pr.diff"
+
+      # Локальный composite action здесь не подходит: он заканчивается вызовом
+      # `opencode github run`, которому нужен токен App. Шаги установки скопированы
+      # из `.github/actions/opencode/action.yml`, версия закреплена: inline-конфиг
+      # ниже использует V1 `permission`, а V2 `permissions` не проходит валидацию.
+      - name: Install OpenCode 1.19.6
+        env:
+          VERSION: '1.19.6'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.opencode/bin"
+          curl -fsSL \
+            "https://github.com/anomalyco/opencode/releases/download/v${VERSION}/opencode-linux-x64.tar.gz" \
+            -o "$RUNNER_TEMP/opencode.tar.gz"
+          tar -xzf "$RUNNER_TEMP/opencode.tar.gz" -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/opencode" "$HOME/.opencode/bin/opencode"
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          "$HOME/.opencode/bin/opencode" --version
+
+      - name: Review with OpenCode
+        timeout-minutes: 15
+        env:
+          # Единственный секрет прогона и осознанное исключение из правила «без
+          # секретов»: это ключ провайдера модели, без него модель не вызвать.
+          # Он даёт доступ только к модели, не к репозиторию, и в окружение
+          # больше ничего не попадает: gh-шаги живут отдельно, у модели нет
+          # GH_TOKEN, а checkout оставлен без credentials.
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          # V1 `permission`: модель читает checkout, но не пишет, не запускает
+          # shell, не ходит в сеть, не зовёт субагентов и не выходит за пределы
+          # рабочей копии. В headless-режиме `ask` сам отклоняется, но `deny`
+          # надёжнее и не зависит от поведения CLI. `--auto` не используется.
+          OPENCODE_CONFIG_CONTENT: '{"permission":{"*":"deny","read":{"*":"allow","*.env":"deny","*.env.*":"deny"},"glob":"allow","grep":"allow","list":"allow","edit":"deny","bash":"deny","task":"deny","webfetch":"deny","websearch":"deny","skill":"deny","lsp":"deny","external_directory":"deny","doom_loop":"deny"}}'
+          REVIEW_PROMPT: |
+            Ты — независимый ревьюер pull request агента. К сообщению приложены два файла:
+            pr.diff — diff PR против merge-base, context.md — тело PR, спека, след
+            согласования, прогоны CI, уже найденные процессные пробелы и полный REVIEW.md.
+            Не меняй файлы, не запускай команды и не ходи в сеть: всё нужное уже в файлах.
+
+            Оцени изменение по REVIEW.md: поведение сверь со спекой, процесс — со следом
+            согласования, отчётность — с телом PR, формат — с разделом «Формат замечаний».
+            Сгенерированный код, стиль, вкусовые предпочтения и правки вне скоупа не
+            комментируй: REVIEW.md, «Что не является замечанием».
+
+            Прогон CI в статусе queued или in_progress, а также отсутствие прогона — не
+            замечание: за проверки отвечает CI, а не ревью. Красный завершённый прогон
+            обязательной проверки на этом head SHA — blocking.
+
+            Верни только Markdown, без вступлений и служебных фраз:
+            1. Короткая сводка: что меняется и готов ли PR к мержу по REVIEW.md.
+            2. Раздел `### Замечания` со списком. Каждое замечание — отдельный пункт ровно
+               в таком виде:
+               - blocking — путь/файл:строка — что не так.
+                 Критерий: номер issue и цитата пункта, раздел REVIEW.md или ADR.
+               - non-blocking — путь/файл:строка — что улучшить.
+                 Критерий: номер issue и цитата пункта, раздел REVIEW.md или ADR.
+               Без файла, строки и критерия замечание не считается.
+            3. Если замечаний нет, напиши: «Блокирующих и неблокирующих замечаний нет».
+
+            Процессные пробелы из context.md workflow уже добавит в комментарий как
+            blocking: не повторяй их и не меняй их уровень. Не пиши approve или request
+            changes, не предлагай мерж и не правь код: итог — только комментарий.
+        run: |
+          set -euo pipefail
+          opencode run \
+            --model opencode/deepseek-v4.1-flash \
+            --agent plan \
+            --file "$RUNNER_TEMP/review/pr.diff" \
+            --file "$RUNNER_TEMP/review/context.md" \
+            "$REVIEW_PROMPT" \
+            > "$RUNNER_TEMP/review/review.md" 2> "$RUNNER_TEMP/review/opencode.log"
+          test -s "$RUNNER_TEMP/review/review.md"
+
+      # Отказ в permissions не роняет `opencode run`, поэтому запись проверяем сами:
+      # даже если модель что-то записала, рабочее дерево обязано остаться чистым.
+      - name: Verify the reviewer did not write
+        run: |
+          set -euo pipefail
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+      # Публикация отдельным шагом: у модели нет GH_TOKEN, а комментарий пишет
+      # GITHUB_TOKEN с правом pull-requests: write. Approve и request changes не
+      # вызываются — ревью advisory, решение принимает владелец репозитория.
+      - name: Publish review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          review_dir="$RUNNER_TEMP/review"
+          comment="$review_dir/comment.md"
+          {
+            printf '## Авторевью PR #%s\n\n' "$PR_NUMBER"
+            printf 'Advisory-ревью на head SHA %s: оно не апрувит и не блокирует мерж, ' "$HEAD_SHA"
+            printf 'решение принимает владелец репозитория. Критерии — REVIEW.md.\n\n'
+            if [ -s "$review_dir/gaps.md" ]; then
+              printf '### Процессные пробелы — blocking (проверено workflow)\n\n'
+              cat "$review_dir/gaps.md"
+              printf '\n'
+            fi
+            printf '### Ревью\n\n'
+            cat "$review_dir/review.md"
+            printf '\n---\n\n'
+            printf '_Авторевью: без approve и request changes; формат замечаний — REVIEW.md._\n'
+          } > "$comment"
+          test -s "$comment"
+          gh pr comment "$PR_NUMBER" --body-file "$comment"
