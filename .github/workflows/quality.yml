@@ -68,6 +68,62 @@ jobs:
       - uses: mokevnin/easement@1eeaecd8451ed08e0f1203542788a77c8d98c71a
         with:
           diff: origin/main
+          # Same version as mise.toml. The action installs `latest` by default,
+          # and the floating binary already moved to a config schema that rejects
+          # this repository's `uncovered_ok`; the gate must match the local run.
+          version: 0.6.6
+
+  # Браузерные тесты на точном головном коммите pull request: `Quality gates`
+  # гоняет e2e на merge-коммите, поэтому его зелёный результат не доказывает
+  # состояние ветки автора. Артефакт с SHA и трассами нужен как проверяемый след
+  # (docs/adr/0006-pr-autoreview-and-head-sha-check.md). В этом цикле job
+  # advisory: `Quality gates` он не заменяет и обязательной проверкой не является.
+  e2e-head:
+    name: E2E on head SHA
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # Чек-аут ровно head.sha, а не merge-коммита PR; шаг ниже падает, если
+      # GitHub отдал другой коммит.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify head SHA
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual=$(git rev-parse HEAD)
+          echo "pull_request.head.sha: ${HEAD_SHA}"
+          echo "git rev-parse HEAD: ${actual}"
+          if [ "${actual}" != "${HEAD_SHA}" ]; then
+            echo "::error::checked out ${actual}, expected head.sha ${HEAD_SHA}"
+            exit 1
+          fi
+          mkdir -p e2e-head
+          printf '%s\n' "${actual}" > e2e-head/sha.txt
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - run: mise run setup
+      - run: pnpm exec playwright install --with-deps chromium
+      # Трассировка включена всегда, а не только на падении: артефакт нужен как
+      # доказательство и для зелёного прогона тоже.
+      - name: Run e2e with traces
+        run: >-
+          pnpm exec playwright test --config test/e2e/playwright.config.ts
+          --trace on --output e2e-head/test-results
+      # Загрузка и после красного прогона: иначе следов поломки не остаётся.
+      - name: Upload head SHA evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-head-${{ github.event.pull_request.head.sha }}
+          path: e2e-head
+          # Повторный прогон того же SHA заменяет артефакт, а не падает на нём.
+          overwrite: true
 
   security:
     name: History secret scan
