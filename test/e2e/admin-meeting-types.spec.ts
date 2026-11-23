@@ -1,8 +1,5 @@
 import { expect, test } from '@playwright/test';
-
-// The dev server keeps meeting types in memory across tests, so every run
-// creates types with unique names and asserts on its own data only.
-const uniqueName = (prefix: string) => `${prefix} ${Date.now()}`;
+import { uniqueName } from './helpers.js';
 
 test('владелец создаёт тип встречи в Modal и попадает на его детализацию', async ({ page }) => {
   const name = uniqueName('Созвон по проекту');
