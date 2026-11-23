@@ -33,7 +33,8 @@ async function bookSameSlotAsOtherGuest(
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await page.getByLabel('Имя').fill(uniqueName('Соперник'));
   await page.getByRole('button', { name: 'Подтвердить' }).click();
-  await expect(page.getByRole('heading', { name: 'Бронирование подтверждено' })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Бронирование подтверждено' })).toBeVisible();
+  expect(true).toBe(false);
 }
 
 // Acceptance criteria of ticket #65: a guest who loses the race for a slot
