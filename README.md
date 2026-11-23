@@ -59,6 +59,46 @@ mise run docker:run     # запустит контейнер; хост-порт
 Прод: <https://kit-calls-calendar.onrender.com>. Render собирает образ из `Dockerfile` в репозитории и
 деплоит его из `main` на каждый коммит; инфраструктура зафиксирована в [`render.yaml`](render.yaml)
 
+## Защита `main` и релизы
+
+`main` защищён classic branch protection (Settings → Branches), владелец репозитория — `kitXIII`.
+Мерж PR блокируют три обязательных чека GitHub Actions: `Quality gates`, `Docker build` и
+`Architecture gate`. Это независимые job'ы [`quality.yml`](.github/workflows/quality.yml), поэтому
+красная сборка образа или нарушение архитектурного гейта не проскочат вместе с зелёным
+`Quality gates`. `strict: false` — ветку не нужно перестраивать на свежий `main`; `enforce_admins:
+true`, force-push и удаление ветки запрещены. Обязательные review не включены: владелец не может
+апрувить свой PR, а решение о мерже и так остаётся человеческим (`AGENTS.md`, «Слияния»).
+
+**Workflow permissions.** У `GITHUB_TOKEN` по умолчанию только `read`, но включено «Allow GitHub
+Actions to create and approve pull requests» (`can_approve_pull_request_reviews: true`). Этого хватает
+release-please: job [`release-please.yml`](.github/workflows/release-please.yml) объявляет
+`pull-requests: write` и создаёт релизный PR от `GITHUB_TOKEN` — так появились PR
+[#39](https://github.com/kitXIII/ai-for-developers-project-387/pull/39),
+[#42](https://github.com/kitXIII/ai-for-developers-project-387/pull/42) и релизы v0.5.1, v0.5.2.
+
+**Гейт подтверждения.** Проверки релизного PR, созданного `GITHUB_TOKEN`, могут ждать «Approve
+workflows to run»: прогон 44725494999 ждал 18 минут. Это ожидаемое поведение настроек, а не поломка
+release-please; владелец подтверждает запуск вручную. Если ожидание станет частой болью, вернёмся к
+отдельному App-токену для release-please.
+
+**Проверка.** Настройки читает только владелец: токен агента на этих эндпоинтах получает `403`.
+
+```bash
+gh api repos/kitXIII/ai-for-developers-project-387/branches/main/protection \
+  --jq '{checks: [.required_status_checks.checks[].context], strict: .required_status_checks.strict,
+         enforce_admins: .enforce_admins.enabled, force_pushes: .allow_force_pushes.enabled,
+         deletions: .allow_deletions.enabled}'
+# → {"checks":["Quality gates","Docker build","Architecture gate"],"strict":false,
+#    "enforce_admins":true,"force_pushes":false,"deletions":false}
+
+gh api repos/kitXIII/ai-for-developers-project-387/actions/permissions/workflow
+# → {"default_workflow_permissions":"read","can_approve_pull_request_reviews":true}
+```
+
+**Остаточные ужесточения.** Allowlist Actions, `required_conversation_resolution` и отказ от
+`sha_pinning_required` (он потребовал бы пинов в `hexlet-check.yml`, который нельзя менять) ведутся в
+[#55](https://github.com/kitXIII/ai-for-developers-project-387/issues/55).
+
 ## Агент в GitHub Actions
 
 В репозитории работает агент [opencode](https://opencode.ai): он отвечает на команду в обсуждении
