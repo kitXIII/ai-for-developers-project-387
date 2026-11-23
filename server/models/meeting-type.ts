@@ -1,5 +1,5 @@
-import { DomainError } from './errors.js';
-import { isShortText } from './text.js';
+import { DomainError } from './utils/errors.js';
+import { isShortText } from './utils/text.js';
 
 // A meeting type entity and its value invariants (ADR 0004): the repository
 // owns `id`, the model owns the rest. Contract views are built by the adapter.

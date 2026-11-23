@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DomainError } from '../../../server/models/errors.js';
+import { DomainError } from '../../../server/models/utils/errors.js';
 import { parseMeetingTypeData } from '../../../server/models/meeting-type.js';
 
 // The model owns the value invariants of a meeting type (ADR 0004). Texts are

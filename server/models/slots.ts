@@ -1,5 +1,5 @@
 import type { Booking } from './booking.js';
-import { DomainError } from './errors.js';
+import { DomainError } from './utils/errors.js';
 import { DAY_MS, MINUTE_MS, shiftByOffset, type Schedule } from './schedule.js';
 
 // The booking rule model (ADR 0002, ADR 0004): the same rules that produce the

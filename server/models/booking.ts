@@ -1,6 +1,6 @@
-import { DomainError } from './errors.js';
+import { DomainError } from './utils/errors.js';
 import type { MeetingType } from './meeting-type.js';
-import { isShortText } from './text.js';
+import { isShortText } from './utils/text.js';
 
 // The booking entity (ADR 0004): everything is epoch-ms here, the repository
 // owns `id`, the contract moments are built by the adapter.
