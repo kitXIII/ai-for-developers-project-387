@@ -1,4 +1,4 @@
-import type { Booking, Slot } from '@app/api/types';
+import type { Booking, ListAvailableSlotsResponse, Slot } from '@app/api/types';
 import { listAvailableSlotsQueryKey } from '@app/api/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -63,12 +63,41 @@ export function useBookingWizard({ meetingTypeId, fromList }: UseBookingWizardIn
   // Any 409 means the picked slot is unusable: clear it, keep the day and the
   // name, go back to the slot list and refetch it — the taken slot must be gone.
   const onSlotConflict = (code: SlotConflictCode): void => {
+    const queryKey = listAvailableSlotsQueryKey({ path: { id: meetingTypeId } });
+    // The cached list keeps rendering until the refetch lands, so the submitted
+    // slot is dropped from it right away: a fast guest must not send it again.
+    // The refetch stays the source of truth and restores the slot if it is free.
+    if (selectedSlot) {
+      const submittedStart = selectedSlot.start;
+      queryClient.setQueryData<ListAvailableSlotsResponse>(queryKey, (days) =>
+        days?.map((day) => ({
+          ...day,
+          slots: day.slots.filter((slot) => slot.start !== submittedStart),
+        })),
+      );
+    }
     setConflictCode(code);
     setSelectedSlot(null);
     setStep(wizardSteps.dateAndTime);
-    void queryClient.invalidateQueries({
-      queryKey: listAvailableSlotsQueryKey({ path: { id: meetingTypeId } }),
-    });
+    void queryClient.invalidateQueries({ queryKey });
+  };
+
+  // The conflict notice belongs to step «Дата и время»: leaving it drops the
+  // notice, so a return without a new 409 does not show a stale alert.
+  const clearConflictOnLeave = (): void => {
+    if (step === wizardSteps.dateAndTime) {
+      setConflictCode(null);
+    }
+  };
+
+  const onNext = (): void => {
+    clearConflictOnLeave();
+    setStep(nextStep);
+  };
+
+  const onPrevious = (): void => {
+    clearConflictOnLeave();
+    setStep(previousStep);
   };
 
   return {
@@ -83,8 +112,8 @@ export function useBookingWizard({ meetingTypeId, fromList }: UseBookingWizardIn
     onGuestNameChange: setGuestName,
     onBooked: setCreatedBooking,
     onSlotConflict,
-    onNext: () => setStep(nextStep),
-    onPrevious: () => setStep(previousStep),
+    onNext,
+    onPrevious,
     onBackToDateTime: () => setStep(wizardSteps.dateAndTime),
   };
 }
