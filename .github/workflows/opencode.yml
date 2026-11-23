@@ -1,8 +1,14 @@
 name: opencode
 
+# The thread number goes into the run name: `display_title` of a run is not
+# rewritten afterwards, so the budget job can find the other runs of the same
+# pull request thread by this marker. Issue and pull request numbers share one
+# sequence, so the marker is unique across both.
+run-name: 'opencode #${{ github.event.issue.number || github.event.pull_request.number }}'
+
 # The agent answers a command in an issue or pull request discussion. Both
 # events run the workflow of the default branch with the repository secrets, so
-# the job condition below decides who may start a run.
+# the budget and the condition of the agent job decide who may start a run.
 on:
   # jactionlint ignore=dangerous-triggers
   issue_comment:
@@ -21,12 +27,17 @@ concurrency:
   queue: max
 
 jobs:
-  opencode:
-    name: Agent
+  budget:
+    name: Budget
     # Only a command of a trusted participant starts a run: bots and users
     # without write access never reach the model. `author_association` is a
     # prefilter only (it does not separate read from write collaborators); the
     # real check is `assertPermissions` inside the action.
+    #
+    # This job reads the history of this workflow before any checkout and
+    # before the App token is issued, so a fork command cannot execute
+    # anything here. The condition sits in this job and not in the agent job so
+    # that a non-command comment neither counts nor publishes a refusal.
     if: |
       github.event.comment.user.type != 'Bot' &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
@@ -35,6 +46,108 @@ jobs:
        startsWith(github.event.comment.body, '/opencode') ||
        contains(github.event.comment.body, ' /opencode')) &&
       (github.event.issue.state || github.event.pull_request.state) == 'open'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      # The budget is counted from the run history of this workflow: the API is
+      # append-only for a token without `actions: write`, so the hour-long
+      # token of the agent (issues: write) cannot reset it by deleting a run or
+      # a log, and neither can it re-run one.
+      actions: read
+    outputs:
+      allowed: ${{ steps.check.outputs.allowed }}
+      spent: ${{ steps.check.outputs.spent }}
+      limit: ${{ steps.check.outputs.limit }}
+      last_run: ${{ steps.check.outputs.last_run }}
+    steps:
+      # An issue thread is not limited. A pull request thread counts attempts
+      # in which the agent job of `opencode.yml` really started: `run_attempt`
+      # of a run covers Re-runs, and `steps` of the `Agent` job separates a
+      # started job from `skipped`, `action_required`, `startup_failure`,
+      # `stale` and a budget refusal. Cancellations and timeouts count, because
+      # the model had already been called. The current run is excluded: it is
+      # already in the list when the check runs.
+      #
+      # The unit is the `Agent` job name below: renaming that job must be
+      # mirrored in the jq filter, otherwise no attempt is counted. Runs made
+      # before `run-name` existed carry the thread title instead of the marker
+      # and are not counted, so the budget starts with this deploy (status:
+      # accepted, docs/adr/0007-pr-run-budget-from-actions-history.md).
+      - name: Count allowed attempts
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          THREAD: ${{ github.event.issue.number || github.event.pull_request.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null || github.event_name == 'pull_request_review_comment' }}
+        run: |
+          set -euo pipefail
+
+          limit=3
+          spent=0
+          last_run=""
+
+          if [ "$IS_PR" != "true" ]; then
+            echo "thread #${THREAD} is an issue: the budget does not apply"
+            {
+              echo "allowed=true"
+              echo "spent=0"
+              echo "limit=${limit}"
+              echo "last_run="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          marker="opencode #${THREAD}"
+          page=1
+          while :; do
+            body=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/opencode.yml/runs?per_page=100&page=${page}")
+            page_runs=$(jq '.workflow_runs | length' <<<"$body")
+            while IFS=$'\t' read -r id attempts url; do
+              [ -n "$id" ] || continue
+              # `attempts/{n}/jobs` is the only way to see every attempt: the
+              # run list returns one entry per run with the last attempt number.
+              for n in $(seq 1 "$attempts"); do
+                jobs=$(gh api \
+                  "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/attempts/${n}/jobs?per_page=100")
+                ran=$(jq '[.jobs[] | select(.name == "Agent") | select((.steps | length) > 0)] | length' <<<"$jobs")
+                spent=$((spent + ran))
+                if [ "$ran" -gt 0 ] && [ -z "$last_run" ]; then
+                  last_run=$url
+                fi
+              done
+            done < <(jq -r --arg marker "$marker" --argjson self "$GITHUB_RUN_ID" '
+                .workflow_runs[]
+                | select(.display_title == $marker and .id != $self)
+                | select((.conclusion // "running")
+                         | IN("skipped", "action_required", "startup_failure", "stale") | not)
+                | [.id, .run_attempt, .html_url] | @tsv' <<<"$body")
+            if [ "$page_runs" -lt 100 ]; then
+              break
+            fi
+            page=$((page + 1))
+          done
+
+          allowed=false
+          if [ "$spent" -lt "$limit" ]; then
+            allowed=true
+          fi
+          echo "thread #${THREAD}: ${spent} of ${limit} allowed attempts spent"
+          {
+            echo "allowed=${allowed}"
+            echo "spent=${spent}"
+            echo "limit=${limit}"
+            echo "last_run=${last_run}"
+          } >> "$GITHUB_OUTPUT"
+
+  opencode:
+    name: Agent
+    needs: budget
+    # A refusal (allowed == false) ends the run here: no checkout, no App
+    # token, no model. The Budget job above already checked that the comment is
+    # a command of a trusted participant.
+    if: needs.budget.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -94,3 +207,46 @@ jobs:
           OPENCODE_CONFIG_CONTENT: '{"permission":{"external_directory":"deny"}}'
         with:
           model: opencode/deepseek-v4.1-flash
+
+  refuse:
+    name: Refusal
+    needs: [budget, opencode]
+    # The refusal is published only after a successful count: a broken counter
+    # is a red Budget job, not a fake `limit_exhausted`. A skipped `Agent` job
+    # (the normal case here) never makes the workflow red.
+    if: |
+      always() &&
+      needs.budget.result == 'success' &&
+      needs.budget.outputs.allowed != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      # One comment in the thread. `issues: write` covers the conversation of
+      # an issue and of a pull request; neither the checkout nor the App token
+      # nor the model is involved in this job.
+      issues: write
+    steps:
+      - name: Publish limit_exhausted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          THREAD: ${{ github.event.issue.number || github.event.pull_request.number }}
+          SPENT: ${{ needs.budget.outputs.spent }}
+          LIMIT: ${{ needs.budget.outputs.limit }}
+          LAST_RUN: ${{ needs.budget.outputs.last_run }}
+        run: |
+          set -euo pipefail
+
+          last=${LAST_RUN:-https://github.com/${GITHUB_REPOSITORY}/actions/workflows/opencode.yml}
+          body=$(printf '%s\n' \
+            '**limit_exhausted** — исчерпан бюджет запусков агента в этом PR-треде.' \
+            '' \
+            "- Допущено команд: ${LIMIT}" \
+            "- Потрачено: ${SPENT}" \
+            "- Последний прогон: ${last}" \
+            '' \
+            'Модель по этой команде не запускалась. Бюджет считается по истории Actions' \
+            '(попытки, в которых job агента действительно стартовал) и не сбрасывается' \
+            'комментарием или агентом; новые команды в треде получат такой же отказ.')
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${THREAD}/comments" \
+            --field body="$body"
