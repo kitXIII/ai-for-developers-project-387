@@ -52,12 +52,10 @@ export function useBookingWizard({ meetingTypeId, fromList }: UseBookingWizardIn
   const onSelectDay = (day: string): void => {
     setSelectedDay(day);
     setSelectedSlot(null);
-    setConflictCode(null);
   };
 
   const onSelectSlot = (slot: Slot): void => {
     setSelectedSlot(slot);
-    setConflictCode(null);
   };
 
   // Any 409 means the picked slot is unusable: clear it, keep the day and the
@@ -82,8 +80,12 @@ export function useBookingWizard({ meetingTypeId, fromList }: UseBookingWizardIn
     void queryClient.invalidateQueries({ queryKey });
   };
 
-  // The conflict notice belongs to step «Дата и время»: leaving it drops the
-  // notice, so a return without a new 409 does not show a stale alert.
+  // The conflict notice belongs to step «Дата и время», not to a slot button:
+  // it explains why the wizard jumped back, so picking another day or slot
+  // keeps it and only leaving the step drops it. A reset tied to slot selection
+  // would miss «Назад» → «Продолжить», where the guest leaves and returns
+  // without picking anything and the stale alert would reappear. Every exit
+  // from the step goes through onNext/onPrevious, so this guard covers it.
   const clearConflictOnLeave = (): void => {
     if (step === wizardSteps.dateAndTime) {
       setConflictCode(null);

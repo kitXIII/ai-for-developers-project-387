@@ -98,9 +98,13 @@ test('гость, проигравший слот, возвращается на
   // The list is refetched, not reused: the taken slot is gone from it.
   await expect(page.getByRole('button', { name: takenSlotLabel })).toHaveCount(0);
 
+  // The notice belongs to the step, not to the slot click: picking another time
+  // keeps it visible until the guest moves off «Дата и время».
+  await page.getByRole('button', { name: replacementSlotLabel }).click();
+  await expect(page.getByText('Это время только что заняли. Выберите другой слот.')).toBeVisible();
+
   // Another slot can be booked without reloading, and the entered name is still
   // there — the confirmation step never shows the old time.
-  await page.getByRole('button', { name: replacementSlotLabel }).click();
   await page.getByRole('button', { name: 'Продолжить' }).click();
   await expect(page.getByLabel('Имя')).toHaveValue(guestName);
   await page.getByRole('button', { name: 'Подтвердить' }).click();
