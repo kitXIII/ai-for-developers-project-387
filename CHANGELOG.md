@@ -4,6 +4,20 @@
 [386](https://github.com/kitXIII/ai-for-developers-project-386): ссылки в записях ниже ведут туда.
 Проект 387 — его продолжение; baseline — тег `v0.3.0`.
 
+## [0.6.0](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.5.2...v0.6.0) (2026-11-24)
+
+
+### Features
+
+* изменение структуры каталога models ([6c448b4](https://github.com/kitXIII/ai-for-developers-project-387/commit/6c448b4132863a703e32a7980358f0a5b16a9b8a))
+
+
+### Bug Fixes
+
+* возвращать гостя на шаг времени после конфликта слота ([3df7a20](https://github.com/kitXIII/ai-for-developers-project-387/commit/3df7a205cd7a407891b277d360089c62065b45ba)), closes [#65](https://github.com/kitXIII/ai-for-developers-project-387/issues/65)
+* не привязывать e2e к часовому поясу (тикет [#65](https://github.com/kitXIII/ai-for-developers-project-387/issues/65)) ([84fe878](https://github.com/kitXIII/ai-for-developers-project-387/commit/84fe87810586a123112414bdab329f805923f2b0))
+* убрать устаревший слот и текст конфликта из мастера брони ([a827f65](https://github.com/kitXIII/ai-for-developers-project-387/commit/a827f656e39e1bd9a1f04bb481c0e9ddee4b9ca7))
+
 ## [0.5.2](https://github.com/kitXIII/ai-for-developers-project-387/compare/v0.5.1...v0.5.2) (2026-11-20)
 
 
