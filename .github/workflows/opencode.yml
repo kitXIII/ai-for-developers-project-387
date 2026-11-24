@@ -221,10 +221,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      # One comment in the thread. `issues: write` covers the conversation of
-      # an issue and of a pull request; neither the checkout nor the App token
-      # nor the model is involved in this job.
-      issues: write
+      # One comment in the thread. The budget limits only pull request threads
+      # (`allowed` is always true for an issue), so the comment always lands in
+      # a PR conversation: the endpoint accepts `issues=write; pull_requests=write`
+      # as alternatives by resource type, and a pull request is checked against
+      # `pull_requests` — `issues: write` alone answers 403. Neither the
+      # checkout nor the App token nor the model is involved in this job.
+      pull-requests: write
     steps:
       - name: Publish limit_exhausted
         env:
